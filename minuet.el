@@ -1,4 +1,4 @@
-;;; minuet.el --- Code completion using LLM. -*- lexical-binding: t; -*-
+;;; minuet.el --- Code completion using LLM -*- lexical-binding: t; -*-
 
 ;; Author: Milan Glacier <dev@milanglacier.com>
 ;; Maintainer: Milan Glacier <dev@milanglacier.com>
@@ -709,8 +709,7 @@ be used to accumulate text output from a process. After execution,
         (setq tmpl (replace-regexp-in-string "{{{.*}}}"
                                              ""
                                              tmpl))
-        tmpl
-        ))
+        tmpl))
 
 (defun minuet--openai-fim-complete-base (options get-text-fn context callback)
     (let ((total-try (or minuet-n-completions 1))
