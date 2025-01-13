@@ -374,6 +374,14 @@ The following config is the default.
     "config options for Minuet OpenAI FIM compatible provider")
 ```
 
+The following configuration is not the default, but recommended to prevent
+request timeout from outputing too many tokens.
+
+```lisp
+(minuet-set-optional-options minuet-openai-compatible-options :max_tokens 256)
+(minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9)
+```
+
 </details>
 
 ## OpenAI-FIM-Compatible
@@ -395,6 +403,14 @@ For example, you can set the `end_point` to
       :name "Deepseek"
       :optional nil)
     "config options for Minuet OpenAI FIM compatible provider")
+```
+
+The following configuration is not the default, but recommended to prevent
+request timeout from outputing too many tokens.
+
+```lisp
+(minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256)
+(minuet-set-optional-options minuet-openai-fim-compatible-options :top_p 0.9)
 ```
 
 </details>
