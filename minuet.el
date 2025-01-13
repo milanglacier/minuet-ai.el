@@ -988,16 +988,17 @@ to be called when completion items arrive."
         (when minuet--debounce-timer
             (cancel-timer minuet--debounce-timer))
         (setq minuet--debounce-timer
-              (run-with-timer
-               minuet-auto-suggestion-debounce-delay nil
-               (lambda ()
-                   (when (and (eq (window-buffer (selected-window)) (current-buffer))
-                              (or (null minuet--auto-last-point)
-                                  (not (eq minuet--auto-last-point (point))))
-                              (not (run-hook-with-args-until-success 'minuet-auto-suggestion-block-functions)))
-                       (setq minuet--last-auto-suggestion-time (current-time)
-                             minuet--auto-last-point (point))
-                       (minuet-show-suggestion)))))))
+              (let ((buffer (current-buffer)))
+                  (run-with-idle-timer
+                   minuet-auto-suggestion-debounce-delay nil
+                   (lambda ()
+                       (when (and (eq buffer (current-buffer))
+                                  (or (null minuet--auto-last-point)
+                                      (not (eq minuet--auto-last-point (point))))
+                                  (not (run-hook-with-args-until-success 'minuet-auto-suggestion-block-functions)))
+                           (setq minuet--last-auto-suggestion-time (current-time)
+                                 minuet--auto-last-point (point))
+                           (minuet-show-suggestion))))))))
 
 (defun minuet--cleanup-auto-suggestion ()
     "Clean up auto-suggestion timers and hooks."
