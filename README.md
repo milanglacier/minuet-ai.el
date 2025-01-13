@@ -365,13 +365,18 @@ For example, you can set the `end_point` to
 The following config is the default.
 
 ```lisp
-(defvar minuet-openai-fim-compatible-options
-    '(:model "deepseek-chat"
-      :end-point "https://api.deepseek.com/beta/completions"
-      :api-key "DEEPSEEK_API_KEY"
-      :name "Deepseek"
+(defvar minuet-openai-compatible-options
+    `(:end-point "https://api.groq.com/openai/v1/chat/completions"
+      :api-key "GROQ_API_KEY"
+      :model "llama-3.3-70b-versatile"
+      :system
+      (:template minuet-default-system-template
+       :prompt minuet-default-prompt
+       :guidelines minuet-default-guidelines
+       :n-completions-template minuet-default-n-completion-template)
+      :fewshots minuet-default-fewshots
       :optional nil)
-    "config options for Minuet OpenAI FIM compatible provider")
+    "Config options for Minuet OpenAI compatible provider.")
 ```
 
 The following configuration is not the default, but recommended to prevent
