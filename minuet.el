@@ -980,11 +980,23 @@ to be called when completion items arrive."
     "Setup auto-suggestion with `post-command-hook'."
     (add-hook 'post-command-hook #'minuet--maybe-show-suggestion nil t))
 
+(defun minuet--is-minuet-command ()
+    "Return t if current command is a minuet command."
+    (and this-command
+         (symbolp this-command)
+         (string-match-p "^minuet" (symbol-name this-command))
+         (message "minuet command executed")))
+
+(defun minuet--is-not-on-throttle ()
+    "Return t if current time since last time is larger than the throttle delay."
+    (or (null minuet--last-auto-suggestion-time)
+        (> (float-time (time-since minuet--last-auto-suggestion-time))
+           minuet-auto-suggestion-throttle-delay)))
+
 (defun minuet--maybe-show-suggestion ()
     "Show suggestion with debouncing and throttling."
-    (when (or (null minuet--last-auto-suggestion-time)
-              (> (float-time (time-since minuet--last-auto-suggestion-time))
-                 minuet-auto-suggestion-throttle-delay))
+    (when (and (minuet--is-not-on-throttle)
+               (not (minuet--is-minuet-command)))
         (when minuet--debounce-timer
             (cancel-timer minuet--debounce-timer))
         (setq minuet--debounce-timer
