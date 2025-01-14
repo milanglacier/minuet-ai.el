@@ -29,7 +29,9 @@ Just as dancers move during a minuet.
 
 # Features
 
-- AI-powered code completion
+- AI-powered code completion with dual modes:
+  - A specialized prompt designed to optimize chat-based LLMs for code completion tasks.
+  - Fill-in-the-middle (FIM) method implemented through the completion API.
 - Support for multiple AI providers (OpenAI, Claude, Gemini,
   Codestral, and OpenAI-compatible services)
 - Customizable configuration options
