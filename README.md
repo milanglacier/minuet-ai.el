@@ -30,8 +30,8 @@ Just as dancers move during a minuet.
 # Features
 
 - AI-powered code completion
-- Support for multiple AI providers (OpenAI, Claude, Gemini, Codestral,
-  Huggingface, and OpenAI-compatible services)
+- Support for multiple AI providers (OpenAI, Claude, Gemini,
+  Codestral, and OpenAI-compatible services)
 - Customizable configuration options
 - Streaming support to enable completion delivery even with slower LLMs
 
@@ -78,30 +78,16 @@ Currently you need to install from github via `package-vc` or
 
     :config
     (setq minuet-provider 'openai-fim-compatible)
-    )
+
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
 ```
 
-Example for Ollama
+Example for Ollama:
 
 <details>
 
 ```elisp
 (use-package minuet
-    :init
-    (general-define-key
-     ;; use completion-in-region for completion
-     "M-y" #'minuet-completion-region
-     ;; use overlay for completion
-     "M-p" #'minuet-previous-suggestion ;; invoke completion or cycle to next completion
-     "M-n" #'minuet-next-suggestion ;; invoke completion or cycle to previous completion
-     "M-A" #'minuet-accept-suggestion ;; accept whole completion
-     "M-a" #'minuet-accept-suggestion-line ;; accept current line completion
-     "M-e" #'minuet-dismiss-suggestion)
-
-     ;; if you want to enable auto suggestion.
-     ;; Note that you can manually invoke completions without enable minuet-auto-suggestion-mode
-     (add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
-
     :config
     (setq minuet-provider 'openai-fim-compatible)
     (plist-put minuet-openai-fim-compatible-options :end-point "http://localhost:11434/v1/completions")
@@ -109,7 +95,26 @@ Example for Ollama
     (plist-put minuet-openai-fim-compatible-options :name "Ollama")
     (plist-put minuet-openai-fim-compatible-options :api-key "TERM")
     (plist-put minuet-openai-fim-compatible-options :model "qwen2.5-coder:3b")
-    )
+
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
+```
+
+</details>
+
+Example for Fireworks with `llama-3.3-70b` model:
+
+<details>
+
+```elisp
+(use-package minuet
+    :config
+    (setq minuet-provider 'openai-compatible)
+    (plist-put minuet-openai-compatible-options :end-point "https://api.fireworks.ai/inference/v1/chat/completions")
+    (plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
+    (plist-put minuet-openai-compatible-options :model "accounts/fireworks/models/llama-v3p3-70b-instruct")
+
+    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 256)
+    (minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9))
 ```
 
 </details>
@@ -122,7 +127,6 @@ Minuet AI requires API keys to function. Set the following environment variables
 - `GEMINI_API_KEY` for Gemini
 - `ANTHROPIC_API_KEY` for Claude
 - `CODESTRAL_API_KEY` for Codestral
-- `HF_API_KEY` for Huggingface
 - Custom environment variable for OpenAI-compatible services (as specified in your configuration)
 
 **Note:** Provide the name of the environment variable to Minuet
@@ -162,7 +166,7 @@ Set the provider you want to use for completion with minuet, available
 options: `openai`, `openai-compatible`, `claude`, `gemini`,
 `openai-fim-compatible`, and `codestral`.
 
-The default is `openai-fim-compatible` (with deepseek).
+The default is `openai-fim-compatible` using the deepseek endpoint.
 
 You can use `ollama` with either `openai-compatible` or
 `openai-fim-compatible` provider, depending on your model is a chat
@@ -217,6 +221,7 @@ You can customize the provider options using `plist-put`, for example:
     (plist-put minuet-openai-options :model "gpt-4o")
 
     ;; change openai-compatible provider to use fireworks
+    (setq minuet-provider 'openai-compatible)
     (plist-put minuet-openai-compatible-options :end-point "https://api.fireworks.ai/inference/v1/chat/completions")
     (plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
     (plist-put minuet-openai-compatible-options :model "accounts/fireworks/models/llama-v3p3-70b-instruct")
@@ -336,19 +341,19 @@ settings following the example:
 
 ```lisp
 (minuet-set-optional-options minuet-gemini-options
-                                :generationConfig
-                                '(:maxOutputTokens 256
-                                :topP 0.9))
+                             :generationConfig
+                             '(:maxOutputTokens 256
+                               :topP 0.9))
 (minuet-set-optional-options minuet-gemini-options
-                                :safetySettings
-                                [(:category "HARM_CATEGORY_DANGEROUS_CONTENT"
-                                :threshold "BLOCK_NONE")
-                                (:category "HARM_CATEGORY_HATE_SPEECH"
-                                :threshold "BLOCK_NONE")
-                                (:category "HARM_CATEGORY_HARASSMENT"
-                                :threshold "BLOCK_NONE")
-                                (:category "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-                                :threshold "BLOCK_NONE")])
+                             :safetySettings
+                             [(:category "HARM_CATEGORY_DANGEROUS_CONTENT"
+                               :threshold "BLOCK_NONE")
+                              (:category "HARM_CATEGORY_HATE_SPEECH"
+                               :threshold "BLOCK_NONE")
+                              (:category "HARM_CATEGORY_HARASSMENT"
+                               :threshold "BLOCK_NONE")
+                              (:category "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+                               :threshold "BLOCK_NONE")])
 ```
 
 </details>
@@ -399,6 +404,8 @@ For example, you can set the `end_point` to
 `http://localhost:11434/v1/completions` to use `ollama`.
 
 <details>
+
+The following config is the default.
 
 ```lisp
 (defvar minuet-openai-fim-compatible-options
