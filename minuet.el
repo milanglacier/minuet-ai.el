@@ -984,8 +984,7 @@ to be called when completion items arrive."
     "Return t if current command is a minuet command."
     (and this-command
          (symbolp this-command)
-         (string-match-p "^minuet" (symbol-name this-command))
-         (message "minuet command executed")))
+         (string-match-p "^minuet" (symbol-name this-command))))
 
 (defun minuet--is-not-on-throttle ()
     "Return t if current time since last time is larger than the throttle delay."
