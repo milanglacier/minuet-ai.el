@@ -140,12 +140,12 @@ variable as a placeholder for it to function.
 
 # Selecting a Provider or Model
 
-For optimal performance, consider using the `deepseek-chat` model,
-which is compatible with both `openai-fim-compatible` and
-`openai-compatible` providers. Alternatively, the `gemini-flash` model
-offers a free and fast experience. For local LLM inference, you can
-deploy either `qwen-coder` or `deepseek-coder` through ollama using
-the `openai-fim-compatible` provider.
+The `gemini-flash` and `codestral` models offer high-quality output
+with free and fast processing. For optimal quality, consider using the
+`deepseek-chat` model, which is compatible with both
+`openai-fim-compatible` and `openai-compatible` providers. For local
+LLM inference, you can deploy either `qwen-coder` or `deepseek-coder`
+through Ollama using the `openai-fim-compatible` provider.
 
 # System Prompt
 
