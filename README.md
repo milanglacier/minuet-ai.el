@@ -146,6 +146,13 @@ inside the provider options, not the actual value. For instance, pass
 If using Ollama, you need to assign an arbitrary, non-null environment
 variable as a placeholder for it to function.
 
+```lisp
+;; Good
+(plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
+;; Bad
+(plist-put minuet-openai-compatible-options :api-key "sk-xxxxx")
+```
+
 # Selecting a Provider or Model
 
 The `gemini-flash` and `codestral` models offer high-quality output
