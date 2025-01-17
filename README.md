@@ -77,7 +77,8 @@ Currently you need to install from github via `package-vc` or
     :config
     (setq minuet-provider 'openai-fim-compatible)
 
-    ;; if you are using evil, this is required.
+    ;; Required when defining minuet-ative-mode-map in insert/normal states.
+    ;; Not required when defining minuet-active-mode-map without evil state.
     (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
 
     (general-define-key
