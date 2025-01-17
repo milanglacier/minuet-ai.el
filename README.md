@@ -68,11 +68,7 @@ Currently you need to install from github via `package-vc` or
      ;; use completion-in-region for completion
      "M-y" #'minuet-completion-region
      ;; use overlay for completion
-     "M-p" #'minuet-previous-suggestion ;; invoke completion or cycle to next completion
-     "M-n" #'minuet-next-suggestion ;; invoke completion or cycle to previous completion
-     "M-A" #'minuet-accept-suggestion ;; accept whole completion
-     "M-a" #'minuet-accept-suggestion-line ;; accept current line completion
-     "M-e" #'minuet-dismiss-suggestion)
+     "M-i" #'minuet-show-suggestion)
 
      ;; if you want to enable auto suggestion.
      ;; Note that you can manually invoke completions without enable minuet-auto-suggestion-mode
@@ -80,6 +76,17 @@ Currently you need to install from github via `package-vc` or
 
     :config
     (setq minuet-provider 'openai-fim-compatible)
+
+    ;; if you are using evil, this is required.
+    (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
+
+    (general-define-key
+     :keymaps 'minuet-active-mode-map
+     "M-p" #'minuet-previous-suggestion ;; invoke completion or cycle to next completion
+     "M-n" #'minuet-next-suggestion ;; invoke completion or cycle to previous completion
+     "M-A" #'minuet-accept-suggestion ;; accept whole completion
+     "M-a" #'minuet-accept-suggestion-line ;; accept current line completion
+     "M-e" #'minuet-dismiss-suggestion)
 
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
 ```

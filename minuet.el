@@ -322,7 +322,8 @@ symbol, return its value.  Else return itself."
         (minuet--cancel-requests))
     (when minuet--current-overlay
         (delete-overlay minuet--current-overlay)
-        (setq minuet--current-overlay nil))
+        (setq minuet--current-overlay nil)
+        (minuet-active-mode -1))
     (remove-hook 'post-command-hook #'minuet--on-cursor-moved t)
     (setq minuet--last-point nil))
 
@@ -359,7 +360,8 @@ symbol, return its value.  Else return itself."
                                          total)
                                  'face 'minuet-suggestion-face))
         (overlay-put ov 'minuet t)
-        (setq minuet--current-overlay ov)))
+        (setq minuet--current-overlay ov)
+        (minuet-active-mode 1)))
 
 ;;;###autoload
 (defun minuet-next-suggestion ()
@@ -1029,6 +1031,15 @@ When enabled, Minuet will automatically show suggestions while you type."
     (if minuet-auto-suggestion-mode
             (minuet--setup-auto-suggestion)
         (minuet--cleanup-auto-suggestion)))
+
+(defvar minuet-active-mode-map
+    (let ((map (make-sparse-keymap))) map)
+    "Keymap used when minuet-active-mode is enabled.")
+
+(define-minor-mode minuet-active-mode
+    "When there is an active suggestion in minuet."
+    :init-value nil
+    :keymap minuet-active-mode-map)
 
 (provide 'minuet)
 ;;; minuet.el ends here
