@@ -66,7 +66,7 @@ Currently you need to install from github via `package-vc` or
     :init
     (general-define-key
      ;; use completion-in-region for completion
-     "M-y" #'minuet-completion-region
+     "M-y" #'minuet-completion-in-region
      ;; use overlay for completion
      "M-i" #'minuet-show-suggestion)
 
