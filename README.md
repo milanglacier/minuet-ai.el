@@ -40,7 +40,7 @@ Just as dancers move during a minuet.
 - Streaming support to enable completion delivery even with slower
   LLMs
 
-**With completion-in-region**:
+**With minibuffer frontend**:
 
 ![example-completion-in-region](./assets/minuet-completion-in-region.jpg)
 
@@ -66,7 +66,7 @@ Currently you need to install from github via `package-vc` or
 (straight-use-package '(minuet :host github :repo "milanglacier/minuet-ai.el"))
 
 (use-package minuet
-    :bind (("M-y" . #'minuet-completion-in-region) ;; use completion-in-region for completion
+    :bind (("M-y" . #'minuet-complete-with-minibuffer) ;; use minibuffer for completion
            ("M-i" . #'minuet-show-suggestion) ;; use overlay for completion
            :map minuet-active-mode-map
            ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
@@ -88,6 +88,7 @@ Currently you need to install from github via `package-vc` or
     (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
 
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
+
 ```
 
 Example for Ollama:
@@ -216,7 +217,7 @@ default is `3`.
 
 ## minuet-add-single-line-entry
 
-For `minuet-completion-in-region` function, Whether to create
+For `minuet-complete-with-minibuffer` function, Whether to create
 additional single-line completion items. When non-nil and a
 completion item has multiple lines, create another completion item
 containing only its first line. This option has no impact for

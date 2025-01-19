@@ -629,8 +629,8 @@ used to accumulate text output from a process.  After execution,
             (insert first-line))))
 
 ;;;###autoload
-(defun minuet-completion-in-region ()
-    "Complete code in region with LLM."
+(defun minuet-complete-with-minibuffer ()
+    "Complete using minibuffer interface."
     (interactive)
     (let ((current-buffer (current-buffer))
           (available-p-fn (intern (format "minuet--%s-available-p" minuet-provider)))
@@ -647,18 +647,13 @@ used to accumulate text output from a process.  After execution,
                                              (minuet--add-single-line-entry items)
                                          items)
                                items (-distinct items))
-                         ;; When there is only one completion item,
-                         ;; the completion-in-region function
-                         ;; automatically inserts the text into the
-                         ;; buffer. We want to prevent this automatic
-                         ;; behavior to ensure users can dismiss the
-                         ;; completion item if desired.
-                         (when (length= items 1)
-                             (push "" items))
                          ;; close current minibuffer session, if any
                          (when (active-minibuffer-window)
                              (abort-recursive-edit))
-                         (completion-in-region (point) (point) items))))))
+                         (when items
+                             (when-let ((selected (completing-read "Complete: " items nil t)))
+                                 (unless (string-empty-p selected)
+                                     (insert selected)))))))))
 
 (defun minuet--get-api-key (api-key)
     "Get the api-key from API-KEY.
@@ -1042,6 +1037,9 @@ When enabled, Minuet will automatically show suggestions while you type."
     "Activated when there is an active suggestion in minuet."
     :init-value nil
     :keymap minuet-active-mode-map)
+
+;;;###autoload
+(define-obsolete-function-alias 'minuet-completion-in-region 'minuet-complete-with-minibuffer "0.2")
 
 (provide 'minuet)
 ;;; minuet.el ends here
