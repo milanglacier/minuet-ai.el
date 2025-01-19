@@ -76,9 +76,9 @@ Currently you need to install from github via `package-vc` or
            ("M-e" . #'minuet-dismiss-suggestion))
 
     :init
-     ;; if you want to enable auto suggestion.
-     ;; Note that you can manually invoke completions without enable minuet-auto-suggestion-mode
-     (add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
+    ;; if you want to enable auto suggestion.
+    ;; Note that you can manually invoke completions without enable minuet-auto-suggestion-mode
+    (add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
 
     :config
     (setq minuet-provider 'openai-fim-compatible)
