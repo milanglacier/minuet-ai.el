@@ -146,9 +146,14 @@ inside the provider options, not the actual value. For instance, pass
 If using Ollama, you need to assign an arbitrary, non-null environment
 variable as a placeholder for it to function.
 
+Alternatively, you can provide a function that returns the API
+key. This function should be fast as it will be called with each
+completion request.
+
 ```lisp
 ;; Good
 (plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
+(plist-put minuet-openai-compatible-options :api-key (defun my-fireworks-api-key () "sk-xxxx"))
 ;; Bad
 (plist-put minuet-openai-compatible-options :api-key "sk-xxxxx")
 ```
@@ -263,6 +268,7 @@ Below is the default value:
 ```lisp
 (defvar minuet-openai-options
     `(:model "gpt-4o-mini"
+      :api-key "OPENAI_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt
@@ -286,6 +292,7 @@ Below is the default value:
 (defvar minuet-claude-options
     `(:model "claude-3-5-sonnet-20241022"
       :max_tokens 512
+      :api-key "ANTHROPIC_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt
@@ -342,6 +349,7 @@ The following config is the default.
 ```lisp
 (defvar minuet-gemini-options
     `(:model "gemini-1.5-flash-latest"
+      :api-key "GEMINI_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt

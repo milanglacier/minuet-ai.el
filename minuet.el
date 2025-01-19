@@ -216,6 +216,7 @@ def fibonacci(n):
 (defvar minuet-claude-options
     `(:model "claude-3-5-sonnet-20241022"
       :max_tokens 512
+      :api-key "ANTHROPIC_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt
@@ -227,6 +228,7 @@ def fibonacci(n):
 
 (defvar minuet-openai-options
     `(:model "gpt-4o-mini"
+      :api-key "OPENAI_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt
@@ -266,6 +268,7 @@ def fibonacci(n):
 
 (defvar minuet-gemini-options
     `(:model "gemini-1.5-flash-latest"
+      :api-key "GEMINI_API_KEY"
       :system
       (:template minuet-default-system-template
        :prompt minuet-default-prompt
@@ -663,22 +666,28 @@ used to accumulate text output from a process.  After execution,
                              (abort-recursive-edit))
                          (completion-in-region (point) (point) items))))))
 
-(defun minuet--check-env-var (env-var)
-    "Check if ENV-VAR exists."
-    (when-let ((var (getenv env-var)))
-        (not (equal var ""))))
+(defun minuet--get-api-key (api-key)
+    "Get the api-key from API-KEY.
+API-KEY can be a string (as an environment variable) or a function.
+Return nil if not exists or is an empty string."
+    (let ((key (if (stringp api-key)
+                       (getenv api-key)
+                   (when (functionp api-key)
+                       (funcall api-key)))))
+        (and (not (equal key "")) key)))
+
 
 (defun minuet--codestral-available-p ()
     "Check if codestral if available."
-    (minuet--check-env-var (plist-get minuet-codestral-options :api-key)))
+    (minuet--get-api-key (plist-get minuet-codestral-options :api-key)))
 
 (defun minuet--openai-available-p ()
     "Check if openai if available."
-    (minuet--check-env-var "OPENAI_API_KEY"))
+    (minuet--get-api-key (plist-get minuet-openai-options :api-key)))
 
 (defun minuet--claude-available-p ()
     "Check if claude is available."
-    (minuet--check-env-var "ANTHROPIC_API_KEY"))
+    (minuet--get-api-key (plist-get minuet-claude-options :api-key)))
 
 (defun minuet--openai-compatible-available-p ()
     "Check if the specified openai-compatible service is available."
@@ -686,7 +695,7 @@ used to accumulate text output from a process.  After execution,
                 (env-var (plist-get options :api-key))
                 (end-point (plist-get options :end-point))
                 (model (plist-get options :model)))
-        (minuet--check-env-var env-var)))
+        (minuet--get-api-key env-var)))
 
 (defun minuet--openai-fim-compatible-available-p ()
     "Check if the specified openai-fim-compatible service is available."
@@ -695,11 +704,11 @@ used to accumulate text output from a process.  After execution,
                 (name (plist-get options :name))
                 (end-point (plist-get options :end-point))
                 (model (plist-get options :model)))
-        (minuet--check-env-var env-var)))
+        (minuet--get-api-key env-var)))
 
 (defun minuet--gemini-available-p ()
     "Check if gemini is available."
-    (minuet--check-env-var "GEMINI_API_KEY"))
+    (minuet--get-api-key (plist-get minuet-gemini-options :api-key)))
 
 (defun minuet--parse-completion-itmes-default (items)
     "Parse ITEMS into a list of completion entries."
@@ -751,7 +760,7 @@ arrive."
               (plz 'post (plist-get options :end-point)
                   :headers `(("Content-Type" . "application/json")
                              ("Accept" . "application/json")
-                             ("Authorization" . ,(concat "Bearer " (getenv (plist-get options :api-key)))))
+                             ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
                   :timeout minuet-request-timeout
                   :body (json-serialize `(,@(plist-get options :optional)
                                           :stream t
@@ -866,8 +875,7 @@ to be called when completion items arrive."
 CONTEXT and CALLBACK will be passed to the base function."
     (minuet--openai-complete-base
      (--> (copy-tree minuet-openai-options)
-          (plist-put it :end-point "https://api.openai.com/v1/chat/completions")
-          (plist-put it :api-key "OPENAI_API_KEY"))
+          (plist-put it :end-point "https://api.openai.com/v1/chat/completions"))
      context callback))
 
 (defun minuet--openai-compatible-complete (context callback)
@@ -891,7 +899,7 @@ to be called when completion items arrive."
       (plz 'post "https://api.anthropic.com/v1/messages"
           :headers `(("Content-Type" . "application/json")
                      ("Accept" . "application/json")
-                     ("x-api-key" . ,(getenv "ANTHROPIC_API_KEY"))
+                     ("x-api-key" . ,(minuet--get-api-key (plist-get minuet-claude-options :api-key)))
                      ("anthropic-version" . "2023-06-01"))
           :timeout minuet-request-timeout
           :body (json-serialize (let ((options (copy-tree minuet-claude-options)))
@@ -940,7 +948,7 @@ to be called when completion items arrive."
      (push
       (plz 'post (format "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s"
                          (plist-get minuet-gemini-options :model)
-                         (getenv "GEMINI_API_KEY"))
+                         (minuet--get-api-key (plist-get minuet-gemini-options :api-key)))
           :headers `(("Content-Type" . "application/json")
                      ("Accept" . "application/json"))
           :timeout minuet-request-timeout
