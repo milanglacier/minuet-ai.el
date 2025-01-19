@@ -469,32 +469,26 @@ Also print the MESSAGE when MESSAGE-P is t."
            (n-chars-before point)
            (point-max (point-max))
            (n-chars-after (- point-max point))
-           (context-before-cursor (buffer-substring-no-properties (point-min) point))
-           (context-after-cursor (buffer-substring-no-properties point point-max)))
-        ;; use some heuristic to decide the context length of before cursor and after cursor
+           (before-start (point-min))
+           (after-end point-max))
+        ;; Calculate context window boundaries before extracting text
         (when (>= (+ n-chars-before n-chars-after) minuet-context-window)
             (cond ((< n-chars-before (* minuet-context-ratio minuet-context-window))
-                   ;; If the context length before cursor does not exceed the maximum
-                   ;; size, we include the full content before the cursor.
-                   (setq context-after-cursor
-                         (substring context-after-cursor 0 (- minuet-context-window n-chars-before))))
+                   ;; If context before cursor does not exceed context-window,
+                   ;; only limit after-cursor content
+                   (setq after-end (+ point (- minuet-context-window n-chars-before))))
                   ((< n-chars-after (* (- 1 minuet-context-ratio) minuet-context-window))
-                   ;; if the context length after cursor does not exceed the maximum
-                   ;; size, we include the full content after the cursor.
-                   (setq context-before-cursor
-                         (substring context-before-cursor (- (+ n-chars-before n-chars-after)
-                                                             minuet-context-window))))
+                   ;; If context after cursor does not exceed context-window,
+                   ;; limit before-cursor content
+                   (setq before-start (- point (- minuet-context-window n-chars-after))))
                   (t
-                   ;; at the middle of the file, use the context_ratio to determine the allocation
-                   (setq context-after-cursor
-                         (substring context-after-cursor 0
-                                    (floor
-                                     (* minuet-context-window (- 1 minuet-context-ratio))))
-                         context-before-cursor
-                         (substring context-before-cursor
-                                    (max 0 (- n-chars-before (floor (* minuet-context-window minuet-context-ratio)))))))))
-        `(:before-cursor ,context-before-cursor
-          :after-cursor ,context-after-cursor
+                   ;; At middle of file, use ratio to determine both boundaries
+                   (setq after-end (+ point (floor (* minuet-context-window (- 1 minuet-context-ratio))))
+                         before-start (+ (point-min)
+                                         (max 0 (- n-chars-before
+                                                   (floor (* minuet-context-window minuet-context-ratio)))))))))
+        `(:before-cursor ,(buffer-substring-no-properties before-start point)
+          :after-cursor ,(buffer-substring-no-properties point after-end)
           :additional ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment)))))
 
 (defun minuet--make-chat-llm-shot (context)
