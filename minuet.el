@@ -841,7 +841,7 @@ to be called when completion items arrive."
       (plz 'post (plist-get options :end-point)
           :headers `(("Content-Type" . "application/json")
                      ("Accept" . "application/json")
-                     ("Authorization" . ,(concat "Bearer " (getenv (plist-get options :api-key)))))
+                     ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
           :timeout minuet-request-timeout
           :body (json-serialize `(,@(plist-get options :optional)
                                   :stream t
