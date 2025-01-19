@@ -249,7 +249,7 @@ You can customize the provider options using `plist-put`, for example:
 )
 ```
 
-To pass optional paramters (like `max_tokens` and `top_p`) to send to
+To pass optional parameters (like `max_tokens` and `top_p`) to send to
 the REST request, you can use function
 `minuet-set-optional-options`:
 
