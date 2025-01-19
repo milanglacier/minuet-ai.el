@@ -1034,10 +1034,10 @@ When enabled, Minuet will automatically show suggestions while you type."
 
 (defvar minuet-active-mode-map
     (let ((map (make-sparse-keymap))) map)
-    "Keymap used when minuet-active-mode is enabled.")
+    "Keymap used when `minuet-active-mode' is enabled.")
 
 (define-minor-mode minuet-active-mode
-    "When there is an active suggestion in minuet."
+    "Activated when there is an active suggestion in minuet."
     :init-value nil
     :keymap minuet-active-mode-map)
 
