@@ -628,16 +628,20 @@ used to accumulate text output from a process.  After execution,
     (minuet--cleanup-suggestion))
 
 ;;;###autoload
-(defun minuet-accept-suggestion-line ()
-    "Accept only the first line of the current overlay suggestion."
-    (interactive)
+(defun minuet-accept-suggestion-line (&optional n)
+    "Accept N lines of the current suggestion.
+When called interactively with a numeric prefix argument, accept that
+many lines.  Without a prefix argument, accept only the first line."
+    (interactive "p")
     (when (and minuet--current-suggestions
                minuet--current-overlay)
         (let* ((suggestion (nth minuet--current-suggestion-index
                                 minuet--current-suggestions))
-               (first-line (car (split-string suggestion "\n"))))
+               (lines (split-string suggestion "\n"))
+               (n (or n 1))
+               (selected-lines (seq-take lines n)))
             (minuet--cleanup-suggestion)
-            (insert first-line))))
+            (insert (string-join selected-lines "\n")))))
 
 ;;;###autoload
 (defun minuet-complete-with-minibuffer ()
