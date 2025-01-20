@@ -66,14 +66,15 @@ Currently you need to install from github via `package-vc` or
 (straight-use-package '(minuet :host github :repo "milanglacier/minuet-ai.el"))
 
 (use-package minuet
-    :bind (("M-y" . #'minuet-complete-with-minibuffer) ;; use minibuffer for completion
-           ("M-i" . #'minuet-show-suggestion) ;; use overlay for completion
-           :map minuet-active-mode-map
-           ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
-           ("M-n" . #'minuet-next-suggestion) ;; invoke completion or cycle to previous completion
-           ("M-A" . #'minuet-accept-suggestion) ;; accept whole completion
-           ("M-a" . #'minuet-accept-suggestion-line) ;; accept current line completion
-           ("M-e" . #'minuet-dismiss-suggestion))
+    :bind
+    (("M-y" . #'minuet-complete-with-minibuffer) ;; use minibuffer for completion
+     ("M-i" . #'minuet-show-suggestion) ;; use overlay for completion
+     :map minuet-active-mode-map
+     ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
+     ("M-n" . #'minuet-next-suggestion) ;; invoke completion or cycle to previous completion
+     ("M-A" . #'minuet-accept-suggestion) ;; accept whole completion
+     ("M-a" . #'minuet-accept-suggestion-line) ;; accept current line completion
+     ("M-e" . #'minuet-dismiss-suggestion))
 
     :init
     ;; if you want to enable auto suggestion.
