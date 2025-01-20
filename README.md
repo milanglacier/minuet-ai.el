@@ -75,7 +75,9 @@ Currently you need to install from github via `package-vc` or
      ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
      ("M-n" . #'minuet-next-suggestion) ;; invoke completion or cycle to previous completion
      ("M-A" . #'minuet-accept-suggestion) ;; accept whole completion
-     ("M-a" . #'minuet-accept-suggestion-line) ;; accept current line completion
+     ;; Accept the first line of completion, or N lines with a numeric-prefix:
+     ;; e.g. C-u 2 M-a will accepts 2 lines of completion.
+     ("M-a" . #'minuet-accept-suggestion-line)
      ("M-e" . #'minuet-dismiss-suggestion))
 
     :init
