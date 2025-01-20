@@ -662,7 +662,7 @@ used to accumulate text output from a process.  After execution,
                          (when (active-minibuffer-window)
                              (abort-recursive-edit))
                          (when items
-                             (when-let ((selected (completing-read "Complete: " items nil t)))
+                             (when-let* ((selected (completing-read "Complete: " items nil t)))
                                  (unless (string-empty-p selected)
                                      (insert selected)))))))))
 
