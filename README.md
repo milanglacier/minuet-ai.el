@@ -69,7 +69,9 @@ Currently you need to install from github via `package-vc` or
     :bind
     (("M-y" . #'minuet-complete-with-minibuffer) ;; use minibuffer for completion
      ("M-i" . #'minuet-show-suggestion) ;; use overlay for completion
+
      :map minuet-active-mode-map
+     ;; These keymaps activate only when a minuet suggestion is displayed in the current buffer
      ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
      ("M-n" . #'minuet-next-suggestion) ;; invoke completion or cycle to previous completion
      ("M-A" . #'minuet-accept-suggestion) ;; accept whole completion
