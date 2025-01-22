@@ -237,6 +237,16 @@ returned items may exceed this value. Additionally, the LLM cannot
 guarantee the exact number of completion items specified, as this
 parameter serves only as a prompt guideline. The default is `3`.
 
+## minuet-auto-suggestion-debounce-delay
+
+The delay in seconds before sending a completion request after typing
+stops.  The default is `0.2` seconds.
+
+## minuet-auto-suggestion-throttle-delay
+
+The minimum time in seconds between 2 completion requests.  The
+default is `1.0` seconds.
+
 # Provider Options
 
 You can customize the provider options using `plist-put`, for example:
