@@ -203,7 +203,7 @@ model or code completion (FIM) model.
 The maximum total characters of the context before and after cursor.
 This limits how much surrounding code is sent to the LLM for context.
 
-The default is 12800, which roughly equates to 4000 tokens after
+The default is 16000, which roughly equates to 4000 tokens after
 tokenization.
 
 ## minuet-context-ratio

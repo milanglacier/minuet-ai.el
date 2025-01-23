@@ -106,9 +106,11 @@ Must be one of the supported providers: codestral, openai, claude, etc."
                    (const :tag "Gemini" gemini))
     :group 'minuet)
 
-(defcustom minuet-context-window 12800
+(defcustom minuet-context-window 16000
     "The maximum total characters of the context before and after cursor.
-This limits how much surrounding code is sent to the LLM for context."
+This limits how much surrounding code is sent to the LLM for context.
+The default is 16000 characters which would roughly equate 4000
+tokens."
     :type 'integer
     :group 'minuet)
 
