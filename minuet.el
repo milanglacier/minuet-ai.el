@@ -162,26 +162,27 @@ parameter serves only as a prompt guideline."
 provide code suggestions based on the user's input. The user's code will be
 enclosed in markers:
 
-- `<contextAfterCursor>`: Code context after the cursor
-- `<cursorPosition>`: Current cursor location
-- `<contextBeforeCursor>`: Code context before the cursor
+- `<contextAfterCursor>`, `</contextAfterCursor>`: Represents the code context following the cursor.
+- `<contextBeforeCursor>`, `</contextBeforeCursor>`: Represents the code context preceding the cursor.
+- `<cursorPosition/>`: Represents the cursor position.
 
-Note that the user's code will be prompted in reverse order: first the code
-after the cursor, then the code before the cursor.
+Please note, the user's code will be presented in reverse order: the
+portion of code following the cursor will be shown first, followed by
+the code preceding the cursor.
 "
     "The default prompt for minuet completion.")
 
 (defvar minuet-default-guidelines
     "Guidelines:
-1. Offer completions after the `<cursorPosition>` marker.
+1. Offer completions after the `<cursorPosition/>` marker.
 2. Make sure you have maintained the user's existing whitespace and indentation.
    This is REALLY IMPORTANT!
 3. Provide multiple completion options when possible.
-4. Return completions separated by the marker <endCompletion>.
+4. Return completions separated by the marker <completion> and </completion>.
 5. The returned message will be further parsed and processed. DO NOT include
    additional comments or markdown code block fences. Return the result directly.
 6. Keep each completion option concise, limiting it to a single line or a few lines.
-7. Create entirely new code completion that DO NOT REPEAT OR COPY any user's existing code around <cursorPosition>."
+7. Create entirely new code completion that DO NOT REPEAT OR COPY any user's existing code around <cursorPosition/>."
     "The default guidelines for minuet completion.")
 
 (defvar minuet-default-n-completion-template
@@ -198,25 +199,20 @@ after the cursor, then the code before the cursor.
 <contextAfterCursor>
 
 fib(5)
+</contextAfterCursor>
 <contextBeforeCursor>
 def fibonacci(n):
-    <cursorPosition>")
+    </contextBeforeCursor><cursorPosition/>")
       (:role "assistant"
-       :content "    '''
-    Recursive Fibonacci implementation
-    '''
-    if n < 2:
+       :content "<completion>if n < 2:
         return n
     return fib(n - 1) + fib(n - 2)
-<endCompletion>
-    '''
-    Iterative Fibonacci implementation
-    '''
-    a, b = 0, 1
+</completion>
+<completion>a, b = 0, 1
     for _ in range(n):
         a, b = b, a + b
     return a
-<endCompletion>
+</completion>
 ")))
 
 (defvar minuet-claude-options
@@ -504,9 +500,10 @@ Also print the MESSAGE when MESSAGE-P is t."
      (plist-get context :additional)
      "\n<contextAfterCursor>\n"
      (plist-get context :after-cursor)
+     "\n</contextAfterCursor>\n"
      "\n<contextBeforeCursor>\n"
      (plist-get context :before-cursor)
-     "<cursorPosition>"))
+     "</contextBeforeCursor><cursorPosition/>"))
 
 (defun minuet--make-context-filter-sequence (context len)
     "Create a filtering string based on CONTEXT with maximum length LEN."
@@ -716,7 +713,9 @@ Return nil if not exists or is an empty string."
 
 (defun minuet--parse-completion-itmes-default (items)
     "Parse ITEMS into a list of completion entries."
-    (split-string items "<endCompletion>"))
+    (--> (split-string items "<completion>")
+         (mapcar
+          (lambda (x) (replace-regexp-in-string "</completi.*" "" x)) it)))
 
 (defun minuet--make-system-prompt (template &optional n-completions)
     "Create system prompt used in chat LLM from TEMPLATE and N-COMPLETIONS."
