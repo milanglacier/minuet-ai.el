@@ -250,6 +250,8 @@ def fibonacci(n):
     '(:model "codestral-latest"
       :end-point "https://codestral.mistral.ai/v1/fim/completions"
       :api-key "CODESTRAL_API_KEY"
+      :template (:prompt minuet--default-fim-prompt-function
+                 :suffix minuet--default-fim-suffix-function)
       :optional nil)
     "Config options for Minuet Codestral provider.")
 
@@ -271,6 +273,8 @@ def fibonacci(n):
       :end-point "https://api.deepseek.com/beta/completions"
       :api-key "DEEPSEEK_API_KEY"
       :name "Deepseek"
+      :template (:prompt minuet--default-fim-prompt-function
+                 :suffix minuet--default-fim-suffix-function)
       :optional nil)
     "Config options for Minuet OpenAI FIM compatible provider.")
 
@@ -284,10 +288,6 @@ def fibonacci(n):
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
       :optional nil)
-    ;; (:generationConfig
-    ;;  (:stopSequences nil
-    ;;   :maxOutputTokens 256
-    ;;   :topP 0.8))
     "Config options for Minuet Gemini provider.")
 
 
@@ -768,13 +768,19 @@ arrive."
                              ("Accept" . "application/json")
                              ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
                   :timeout minuet-request-timeout
-                  :body (json-serialize `(,@(plist-get options :optional)
-                                          :stream t
-                                          :model ,(plist-get options :model)
-                                          :prompt ,(format "%s\n%s"
-                                                           (plist-get context :additional)
-                                                           (plist-get context :before-cursor))
-                                          :suffix ,(plist-get context :after-cursor)))
+                  :body
+                  (json-serialize
+                   `(,@(plist-get options :optional)
+                     :stream t
+                     :model ,(plist-get options :model)
+                     :prompt ,(funcall (--> options
+                                            (plist-get it :template)
+                                            (plist-get it :prompt))
+                                       context)
+                     ,@(when-let* ((suffix-fn (--> options
+                                                   (plist-get it :template)
+                                                   (plist-get it :suffix))))
+                           (list :suffix (funcall suffix-fn context)))))
                   :as 'string
                   :filter (minuet--make-process-stream-filter --response--)
                   :then
@@ -1026,6 +1032,16 @@ to be called when completion items arrive."
                            (setq minuet--last-auto-suggestion-time (current-time)
                                  minuet--auto-last-point (point))
                            (minuet-show-suggestion))))))))
+
+(defun minuet--default-fim-prompt-function (ctx)
+    "Default function to generate prompt for FIM completions from CTX."
+    (format "%s\n%s"
+            (plist-get ctx :additional)
+            (plist-get ctx :before-cursor)))
+
+(defun minuet--default-fim-suffix-function (ctx)
+    "Default function to generate suffix for FIM completions from CTX."
+    (plist-get ctx :after-cursor))
 
 (defun minuet--cleanup-auto-suggestion ()
     "Clean up auto-suggestion timers and hooks."
