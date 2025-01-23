@@ -30,15 +30,14 @@ Just as dancers move during a minuet.
 # Features
 
 - AI-powered code completion with dual modes:
-  - Specialized prompts and various enhancements for chat-based LLMs
-    on code completion tasks.
-  - Fill-in-the-middle (FIM) completion for compatible models
-    (DeepSeek, Codestral, and some Ollama models).
-- Support for multiple AI providers (OpenAI, Claude, Gemini,
-  Codestral, Ollama, and OpenAI-compatible providers)
+  - Specialized prompts and various enhancements for chat-based LLMs on code
+    completion tasks.
+  - Fill-in-the-middle (FIM) completion for compatible models (DeepSeek,
+    Codestral, and some Ollama models).
+- Support for multiple AI providers (OpenAI, Claude, Gemini, Codestral, Ollama,
+  and OpenAI-compatible providers)
 - Customizable configuration options
-- Streaming support to enable completion delivery even with slower
-  LLMs
+- Streaming support to enable completion delivery even with slower LLMs
 
 **With minibuffer frontend**:
 
@@ -57,8 +56,8 @@ Just as dancers move during a minuet.
 
 # Installation
 
-Currently you need to install from github via `package-vc` or
-`straight`, or manually install this package.
+Currently you need to install from github via `package-vc` or `straight`, or
+manually install this package.
 
 ```elisp
 
@@ -135,24 +134,25 @@ Example for Fireworks with `llama-3.3-70b` model:
 
 # API Keys
 
-Minuet AI requires API keys to function. Set the following environment variables:
+Minuet AI requires API keys to function. Set the following environment
+variables:
 
 - `OPENAI_API_KEY` for OpenAI
 - `GEMINI_API_KEY` for Gemini
 - `ANTHROPIC_API_KEY` for Claude
 - `CODESTRAL_API_KEY` for Codestral
-- Custom environment variable for OpenAI-compatible services (as specified in your configuration)
+- Custom environment variable for OpenAI-compatible services (as specified in
+  your configuration)
 
-**Note:** Provide the name of the environment variable to Minuet
-inside the provider options, not the actual value. For instance, pass
-`OPENAI_API_KEY` to Minuet, not the value itself (e.g., `sk-xxxx`).
+**Note:** Provide the name of the environment variable to Minuet inside the
+provider options, not the actual value. For instance, pass `OPENAI_API_KEY` to
+Minuet, not the value itself (e.g., `sk-xxxx`).
 
-If using Ollama, you need to assign an arbitrary, non-null environment
-variable as a placeholder for it to function.
+If using Ollama, you need to assign an arbitrary, non-null environment variable
+as a placeholder for it to function.
 
-Alternatively, you can provide a function that returns the API
-key. This function should be fast as it will be called with each
-completion request.
+Alternatively, you can provide a function that returns the API key. This
+function should be fast as it will be called with each completion request.
 
 ```lisp
 ;; Good
@@ -164,88 +164,85 @@ completion request.
 
 # Selecting a Provider or Model
 
-The `gemini-flash` and `codestral` models offer high-quality output
-with free and fast processing. For optimal quality, consider using the
-`deepseek-chat` model, which is compatible with both
-`openai-fim-compatible` and `openai-compatible` providers. For local
-LLM inference, you can deploy either `qwen-coder` or `deepseek-coder`
-through Ollama using the `openai-fim-compatible` provider.
+The `gemini-flash` and `codestral` models offer high-quality output with free
+and fast processing. For optimal quality, consider using the `deepseek-chat`
+model, which is compatible with both `openai-fim-compatible` and
+`openai-compatible` providers. For local LLM inference, you can deploy either
+`qwen-coder` or `deepseek-coder` through Ollama using the
+`openai-fim-compatible` provider.
 
-# System Prompt
+# Prompt
 
-See [prompt](./prompt.md) for the default system prompt used by `minuet` and
+See [prompt](./prompt.md) for the default prompt used by `minuet` and
 instructions on customization.
 
-Please note that the System Prompt only applies to chat-based LLMs (OpenAI,
-OpenAI-Compatible, Claude, and Gemini). It does not apply to Codestral and
-OpenAI-FIM-compatible models.
+Note that `minuet` employs two distinct prompt systems:
+
+1. A system designed for chat-based LLMs (OpenAI, OpenAI-Compatible, Claude, and
+   Gemini)
+2. A separate system designed for Codestral and OpenAI-FIM-compatible models
 
 # Configuration
 
-Below are commonly used configuration options. To view the complete
-list of available settings, search for `minuet` through the
-`customize` interface.
+Below are commonly used configuration options. To view the complete list of
+available settings, search for `minuet` through the `customize` interface.
 
 ## minuet-provider
 
-Set the provider you want to use for completion with minuet, available
-options: `openai`, `openai-compatible`, `claude`, `gemini`,
-`openai-fim-compatible`, and `codestral`.
+Set the provider you want to use for completion with minuet, available options:
+`openai`, `openai-compatible`, `claude`, `gemini`, `openai-fim-compatible`, and
+`codestral`.
 
 The default is `openai-fim-compatible` using the deepseek endpoint.
 
-You can use `ollama` with either `openai-compatible` or
-`openai-fim-compatible` provider, depending on your model is a chat
-model or code completion (FIM) model.
+You can use `ollama` with either `openai-compatible` or `openai-fim-compatible`
+provider, depending on your model is a chat model or code completion (FIM)
+model.
 
 ## minuet-context-window
 
-The maximum total characters of the context before and after cursor.
-This limits how much surrounding code is sent to the LLM for context.
+The maximum total characters of the context before and after cursor. This limits
+how much surrounding code is sent to the LLM for context.
 
-The default is 16000, which roughly equates to 4000 tokens after
-tokenization.
+The default is 16000, which roughly equates to 4000 tokens after tokenization.
 
 ## minuet-context-ratio
 
-Ratio of context before cursor vs after cursor. When the total
-characters exceed the context window, this ratio determines how much
-context to keep before vs after the cursor. A larger ratio means more
-context before the cursor will be used. The ratio should between 0 and
-`1`, and default is `0.75`.
+Ratio of context before cursor vs after cursor. When the total characters exceed
+the context window, this ratio determines how much context to keep before vs
+after the cursor. A larger ratio means more context before the cursor will be
+used. The ratio should between 0 and `1`, and default is `0.75`.
 
 ## minuet-request-timeout
 
-Maximum timeout in seconds for sending completion requests. In case of
-the timeout, the incomplete completion items will be delivered. The
-default is `3`.
+Maximum timeout in seconds for sending completion requests. In case of the
+timeout, the incomplete completion items will be delivered. The default is `3`.
 
 ## minuet-add-single-line-entry
 
-For `minuet-complete-with-minibuffer` function, Whether to create
-additional single-line completion items. When non-nil and a
-completion item has multiple lines, create another completion item
-containing only its first line. This option has no impact for
-overlay-based suggesion.
+For `minuet-complete-with-minibuffer` function, Whether to create additional
+single-line completion items. When non-nil and a completion item has multiple
+lines, create another completion item containing only its first line. This
+option has no impact for overlay-based suggesion.
 
 ## minuet-n-completions
 
-Number of completion items to request from the language model. This
-number is encoded as part of the prompt for the chat LLM. Note that
-when `minuet-add-single-line-entry` is true, the actual number of
-returned items may exceed this value. Additionally, the LLM cannot
-guarantee the exact number of completion items specified, as this
-parameter serves only as a prompt guideline. The default is `3`.
+Number of completion items to request from the language model. This number is
+encoded as part of the prompt for the chat LLM. Note that when
+`minuet-add-single-line-entry` is true, the actual number of returned items may
+exceed this value. Additionally, the LLM cannot guarantee the exact number of
+completion items specified, as this parameter serves only as a prompt guideline.
+The default is `3`.
 
 ## minuet-auto-suggestion-debounce-delay
 
-The delay in seconds before sending a completion request after typing
-stops.  The default is `0.2` seconds.
+The delay in seconds before sending a completion request after typing stops. The
+default is `0.2` seconds.
 
 ## minuet-auto-suggestion-throttle-delay
 
-The minimum time in seconds between 2 completion requests.  The
-default is `1.0` seconds.
+The minimum time in seconds between 2 completion requests. The default is `1.0`
+seconds.
 
 # Provider Options
 
@@ -264,9 +261,8 @@ You can customize the provider options using `plist-put`, for example:
 )
 ```
 
-To pass optional parameters (like `max_tokens` and `top_p`) to send to
-the REST request, you can use function
-`minuet-set-optional-options`:
+To pass optional parameters (like `max_tokens` and `top_p`) to send to the REST
+request, you can use function `minuet-set-optional-options`:
 
 ```lisp
 (minuet-set-optional-options minuet-openai-options :max_tokens 256)
@@ -323,8 +319,8 @@ Below is the default value:
 
 <details>
 
-Codestral is a text completion model, not a chat model, so the system prompt
-and few shot examples does not apply. Note that you should use the
+Codestral is a text completion model, not a chat model, so the system prompt and
+few shot examples does not apply. Note that you should use the
 `CODESTRAL_API_KEY`, not the `MISTRAL_API_KEY`, as they are using different
 endpoint. To use the Mistral endpoint, simply modify the `end_point` and
 `api_key` parameters in the configuration.
@@ -336,6 +332,8 @@ Below is the default value:
     '(:model "codestral-latest"
       :end-point "https://codestral.mistral.ai/v1/fim/completions"
       :api-key "CODESTRAL_API_KEY"
+      :template (:prompt minuet--default-fim-prompt-function
+                 :suffix minuet--default-fim-suffix-function)
       :optional nil)
     "config options for Minuet Codestral provider")
 ```
@@ -352,9 +350,9 @@ request timeout from outputing too many tokens.
 
 ## Gemini
 
-You should use the end point from Google AI Studio instead of Google
-Cloud. You can get an API key via their [Google API
-page](https://makersuite.google.com/app/apikey).
+You should use the end point from Google AI Studio instead of Google Cloud. You
+can get an API key via their
+[Google API page](https://makersuite.google.com/app/apikey).
 
 <details>
 
@@ -452,6 +450,8 @@ The following config is the default.
       :end-point "https://api.deepseek.com/beta/completions"
       :api-key "DEEPSEEK_API_KEY"
       :name "Deepseek"
+      :template (:prompt minuet--default-fim-prompt-function
+                 :suffix minuet--default-fim-suffix-function)
       :optional nil)
     "config options for Minuet OpenAI FIM compatible provider")
 ```

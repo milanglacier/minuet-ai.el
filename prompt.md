@@ -1,3 +1,28 @@
+# FIM LLM Prompt Structure
+
+The prompt sent to the FIM LLM follows this structure:
+
+```lisp
+'(:template (:prompt minuet--default-fim-prompt-function
+             :suffix minuet--default-fim-suffix-function))
+```
+
+The template contains two main functions:
+
+- `:prompt`: return language and the indentation style, followed by the
+  `context_before_cursor` verbatim.
+- `:suffix`: return `context_after_cursor` verbatim.
+
+Both functions can be customized to supply additional context to the LLM. The
+`suffix` function can be disabled by setting `:suffix` to `nil` via `plist-put`,
+resulting in a request containing only the prompt.
+
+Note: for Ollama users: Do not include special tokens (e.g., `<|fim_begin|>`)
+within the prompt or suffix functions, as these will be automatically populated
+by Ollama. If your use case requires special tokens not covered by Ollama's
+default template, disable the `:suffix` function by setting it to `nil` and
+incorporate the necessary special tokens within the prompt function.
+
 # Default Template
 
 `{{{:prompt}}}\n{{{:guidelines}}}\n{{{:n_completion_template}}}`
@@ -25,8 +50,10 @@ Guidelines:
 3. Provide multiple completion options when possible.
 4. Return completions separated by the marker `<endCompletion>`.
 5. The returned message will be further parsed and processed. DO NOT include
-   additional comments or markdown code block fences. Return the result directly.
-6. Keep each completion option concise, limiting it to a single line or a few lines.
+   additional comments or markdown code block fences. Return the result
+   directly.
+6. Keep each completion option concise, limiting it to a single line or a few
+   lines.
 7. Create entirely new code completion that DO NOT REPEAT OR COPY any user's
    existing code around `<cursorPosition>`.
 
@@ -66,11 +93,10 @@ def fibonacci(n):
 
 # Customization
 
-You can customize the `:template` by encoding placeholders within
-triple braces.  These placeholders will be interpolated using the
-corresponding key-value pairs from the table. The value can be a
-function that takes no argument and returns a string, or a symbol
-whose value is a string.
+You can customize the `:template` by encoding placeholders within triple braces.
+These placeholders will be interpolated using the corresponding key-value pairs
+from the table. The value can be a function that takes no argument and returns a
+string, or a symbol whose value is a string.
 
 Here's a simplified example for illustrative purposes (not intended for actual
 configuration):
@@ -89,8 +115,8 @@ configuration):
 ```
 
 Note that `:n_completion_template` is a special placeholder as it contains one
-`%d` which will be encoded with `minuet-n-completions`, if you want to
-customize this template, make sure your prompt also contains only one `%d`.
+`%d` which will be encoded with `minuet-n-completions`, if you want to customize
+this template, make sure your prompt also contains only one `%d`.
 
 Similarly, `:fewshots` can be a plist in the following form or a function that
 takes no argument and returns a plist in the following form:
