@@ -151,12 +151,13 @@ positives."
     :group 'minuet)
 
 (defcustom minuet-n-completions 3
-    "Number of completion items to request from the language model.
-This number is encoded as part of the prompt for the chat LLM.  Note
-that when `minuet-add-single-line-entry' is true, the actual number of
+    "Number of completion items.
+For FIM model, this is the number of requests to send.  For chat LLM ,
+this is the number of completions encoded as part of the prompt.  Note
+that when `minuet-add-single-line-entry` is true, the actual number of
 returned items may exceed this value.  Additionally, the LLM cannot
 guarantee the exact number of completion items specified, as this
-parameter serves only as a prompt guideline."
+parameter serves only as a prompt guideline.  The default is `3`."
     :type 'integer
     :group 'minuet)
 

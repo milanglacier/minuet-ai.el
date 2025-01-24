@@ -103,6 +103,7 @@ Example for Ollama:
 (use-package minuet
     :config
     (setq minuet-provider 'openai-fim-compatible)
+    (setq minuet-n-completions 1) ; recommended for Local LLM for resource saving
     (plist-put minuet-openai-fim-compatible-options :end-point "http://localhost:11434/v1/completions")
     ;; an arbitrary non-null environment variable as placeholder
     (plist-put minuet-openai-fim-compatible-options :name "Ollama")
@@ -227,12 +228,15 @@ option has no impact for overlay-based suggesion.
 
 ## minuet-n-completions
 
-Number of completion items to request from the language model. This number is
-encoded as part of the prompt for the chat LLM. Note that when
-`minuet-add-single-line-entry` is true, the actual number of returned items may
-exceed this value. Additionally, the LLM cannot guarantee the exact number of
-completion items specified, as this parameter serves only as a prompt guideline.
-The default is `3`.
+For FIM model, this is the number of requests to send. For chat LLM ,
+this is the number of completions encoded as part of the prompt. Note
+that when `minuet-add-single-line-entry` is true, the actual number of
+returned items may exceed this value. Additionally, the LLM cannot
+guarantee the exact number of completion items specified, as this
+parameter serves only as a prompt guideline.  The default is `3`.
+
+If resource efficiency is imporant, it is recommended to set this
+value to `1`.
 
 ## minuet-auto-suggestion-debounce-delay
 
