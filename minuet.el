@@ -34,6 +34,7 @@
 
 (require 'plz)
 (require 'dash)
+(require 'cl-lib)
 
 (defgroup minuet nil
     "Minuet group."
@@ -194,6 +195,14 @@ after the cursor, then the code before the cursor.
     "{{{:prompt}}}\n{{{:guidelines}}}\n{{{:n-completions-template}}}"
     "The default template for minuet system template.")
 
+(defvar minuet-default-chat-input-template
+    "{{{:language-and-tab}}}
+<contextAfterCursor>
+{{{:context-after-cursor}}}
+<contextBeforeCursor>
+{{{:context-before-cursor}}}<cursorPosition>"
+    "The default template for minuet chat input.")
+
 (defvar minuet-default-fewshots
     `((:role "user"
        :content "# language: python
@@ -231,6 +240,11 @@ def fibonacci(n):
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "Config options for Minuet Claude provider.")
 
@@ -243,6 +257,11 @@ def fibonacci(n):
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "Config options for Minuet OpenAI provider.")
 
@@ -265,6 +284,11 @@ def fibonacci(n):
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "Config options for Minuet OpenAI compatible provider.")
 
@@ -287,6 +311,11 @@ def fibonacci(n):
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "Config options for Minuet Gemini provider.")
 
@@ -500,15 +529,36 @@ Also print the MESSAGE when MESSAGE-P is t."
           :after-cursor ,(buffer-substring-no-properties point after-end)
           :additional ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment)))))
 
-(defun minuet--make-chat-llm-shot (context)
-    "Build the prompt for chat llm from CONTEXT."
-    (concat
-     (plist-get context :additional)
-     "\n<contextAfterCursor>\n"
-     (plist-get context :after-cursor)
-     "\n<contextBeforeCursor>\n"
-     (plist-get context :before-cursor)
-     "<cursorPosition>"))
+(defun minuet--make-chat-llm-shot (context options)
+    "Build the final chat input for chat llm.
+CONTEXT is read from current buffer content.
+OPTIONS should be the provider options plist."
+    (let* ((chat-input (copy-tree (plist-get options :chat-input)))
+           (template (minuet--eval-value (plist-get chat-input :template)))
+           (parts nil))
+        ;; Remove template from options to avoid infinite recursion
+        (setq chat-input (plist-put chat-input :template nil))
+        ;; Use cl-loop for better control flow
+        (cl-loop with last-pos = 0
+                 for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
+                 until (not match)
+                 for start-pos = (match-beginning 0)
+                 for end-pos = (match-end 0)
+                 for key = (match-string 1 template)
+                 do
+                 ;; Add text before placeholder
+                 (when (> start-pos last-pos)
+                     (push (substring template last-pos start-pos) parts))
+                 ;; Get and add replacement value
+                 (when-let* ((repl-fn (plist-get chat-input (intern key)))
+                             (value (funcall repl-fn context)))
+                     (push value parts))
+                 (setq last-pos end-pos)
+                 finally
+                 ;; Add remaining text after last match
+                 (push (substring template last-pos) parts))
+        ;; Join parts in reverse order
+        (apply #'concat (nreverse parts))))
 
 (defun minuet--make-context-filter-sequence (context len)
     "Create a filtering string based on CONTEXT with maximum length LEN."
@@ -851,19 +901,22 @@ to be called when completion items arrive."
     (minuet--with-temp-response
      (push
       (plz 'post (plist-get options :end-point)
-          :headers `(("Content-Type" . "application/json")
-                     ("Accept" . "application/json")
-                     ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
+          :headers
+          `(("Content-Type" . "application/json")
+            ("Accept" . "application/json")
+            ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
           :timeout minuet-request-timeout
-          :body (json-serialize `(,@(plist-get options :optional)
-                                  :stream t
-                                  :model ,(plist-get options :model)
-                                  :messages ,(vconcat
-                                              `((:role "system"
-                                                 :content ,(minuet--make-system-prompt (plist-get options :system)))
-                                                ,@(minuet--eval-value (plist-get options :fewshots))
-                                                (:role "user"
-                                                 :content ,(minuet--make-chat-llm-shot context))))))
+          :body
+          (json-serialize
+           `(,@(plist-get options :optional)
+             :stream t
+             :model ,(plist-get options :model)
+             :messages ,(vconcat
+                         `((:role "system"
+                            :content ,(minuet--make-system-prompt (plist-get options :system)))
+                           ,@(minuet--eval-value (plist-get options :fewshots))
+                           (:role "user"
+                            :content ,(minuet--make-chat-llm-shot context options))))))
           :as 'string
           :filter (minuet--make-process-stream-filter --response--)
           :then
@@ -914,16 +967,18 @@ to be called when completion items arrive."
                      ("x-api-key" . ,(minuet--get-api-key (plist-get minuet-claude-options :api-key)))
                      ("anthropic-version" . "2023-06-01"))
           :timeout minuet-request-timeout
-          :body (json-serialize (let ((options (copy-tree minuet-claude-options)))
-                                    `(,@(plist-get options :optional)
-                                      :stream t
-                                      :model ,(plist-get options :model)
-                                      :system ,(minuet--make-system-prompt (plist-get options :system))
-                                      :max_tokens ,(plist-get options :max_tokens)
-                                      :messages ,(vconcat
-                                                  `(,@(minuet--eval-value (plist-get options :fewshots))
-                                                    (:role "user"
-                                                     :content ,(minuet--make-chat-llm-shot context)))))))
+          :body
+          (json-serialize
+           (let ((options (copy-tree minuet-claude-options)))
+               `(,@(plist-get options :optional)
+                 :stream t
+                 :model ,(plist-get options :model)
+                 :system ,(minuet--make-system-prompt (plist-get options :system))
+                 :max_tokens ,(plist-get options :max_tokens)
+                 :messages ,(vconcat
+                             `(,@(minuet--eval-value (plist-get options :fewshots))
+                               (:role "user"
+                                :content ,(minuet--make-chat-llm-shot context minuet-claude-options)))))))
           :as 'string
           :filter (minuet--make-process-stream-filter --response--)
           :then
@@ -964,22 +1019,23 @@ to be called when completion items arrive."
           :headers `(("Content-Type" . "application/json")
                      ("Accept" . "application/json"))
           :timeout minuet-request-timeout
-          :body (json-serialize
-                 (let* ((options (copy-tree minuet-gemini-options))
-                        (fewshots (minuet--eval-value (plist-get options :fewshots)))
-                        (fewshots (mapcar
-                                   (lambda (shot)
-                                       `(:role
-                                         ,(if (equal (plist-get shot :role) "user") "user" "model")
-                                         :parts
-                                         [(:text ,(plist-get shot :content))]))
-                                   fewshots)))
-                     `(,@(plist-get options :optional)
-                       :system_instruction (:parts (:text ,(minuet--make-system-prompt (plist-get options :system))))
-                       :contents ,(vconcat
-                                   `(,@fewshots
-                                     (:role "user"
-                                      :parts [(:text ,(minuet--make-chat-llm-shot context))]))))))
+          :body
+          (json-serialize
+           (let* ((options (copy-tree minuet-gemini-options))
+                  (fewshots (minuet--eval-value (plist-get options :fewshots)))
+                  (fewshots (mapcar
+                             (lambda (shot)
+                                 `(:role
+                                   ,(if (equal (plist-get shot :role) "user") "user" "model")
+                                   :parts
+                                   [(:text ,(plist-get shot :content))]))
+                             fewshots)))
+               `(,@(plist-get options :optional)
+                 :system_instruction (:parts (:text ,(minuet--make-system-prompt (plist-get options :system))))
+                 :contents ,(vconcat
+                             `(,@fewshots
+                               (:role "user"
+                                :parts [(:text ,(minuet--make-chat-llm-shot context minuet-gemini-options))]))))))
           :as 'string
           :filter (minuet--make-process-stream-filter --response--)
           :then
@@ -1041,6 +1097,18 @@ to be called when completion items arrive."
 
 (defun minuet--default-fim-suffix-function (ctx)
     "Default function to generate suffix for FIM completions from CTX."
+    (plist-get ctx :after-cursor))
+
+(defun minuet--default-chat-input-language-and-tab-function (ctx)
+    "Default function to get language and tab style from CTX."
+    (plist-get ctx :additional))
+
+(defun minuet--default-chat-input-before-cursor-function (ctx)
+    "Default function to get before cursor from CTX."
+    (plist-get ctx :before-cursor))
+
+(defun minuet--default-chat-input-after-cursor-function (ctx)
+    "Default function to get after cursor from CTX."
     (plist-get ctx :after-cursor))
 
 (defun minuet--cleanup-auto-suggestion ()
