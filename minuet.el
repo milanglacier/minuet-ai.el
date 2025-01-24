@@ -527,7 +527,7 @@ Also print the MESSAGE when MESSAGE-P is t."
                                                    (floor (* minuet-context-window minuet-context-ratio)))))))))
         `(:before-cursor ,(buffer-substring-no-properties before-start point)
           :after-cursor ,(buffer-substring-no-properties point after-end)
-          :additional ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment)))))
+          :language-and-tab ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment)))))
 
 (defun minuet--make-chat-llm-shot (context options)
     "Build the final chat input for chat llm.
@@ -1092,7 +1092,7 @@ to be called when completion items arrive."
 (defun minuet--default-fim-prompt-function (ctx)
     "Default function to generate prompt for FIM completions from CTX."
     (format "%s\n%s"
-            (plist-get ctx :additional)
+            (plist-get ctx :language-and-tab)
             (plist-get ctx :before-cursor)))
 
 (defun minuet--default-fim-suffix-function (ctx)
@@ -1101,7 +1101,7 @@ to be called when completion items arrive."
 
 (defun minuet--default-chat-input-language-and-tab-function (ctx)
     "Default function to get language and tab style from CTX."
-    (plist-get ctx :additional))
+    (plist-get ctx :language-and-tab))
 
 (defun minuet--default-chat-input-before-cursor-function (ctx)
     "Default function to get before cursor from CTX."
