@@ -345,7 +345,7 @@ If value is a function (either lambda or a callable symbol), eval the
 function (with no argument) and return the result.  Else if value is a
 symbol, return its value.  Else return itself."
     (cond ((functionp value) (funcall value))
-          ((boundp value) (symbol-value value))
+          ((and (symbolp value) (boundp value)) (symbol-value value))
           (t value)))
 
 (defun minuet--cancel-requests ()
