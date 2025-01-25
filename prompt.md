@@ -23,11 +23,13 @@ by Ollama. If your use case requires special tokens not covered by Ollama's
 default template, disable the `:suffix` function by setting it to `nil` and
 incorporate the necessary special tokens within the prompt function.
 
-# Default Template
+# Chat LLM Prompt Structure
+
+## Default Template
 
 `{{{:prompt}}}\n{{{:guidelines}}}\n{{{:n_completion_template}}}`
 
-# Default Prompt
+## Default Prompt
 
 You are the backend of an AI-powered code completion engine. Your task is to
 provide code suggestions based on the user's input. The user's code will be
@@ -40,7 +42,7 @@ enclosed in markers:
 Note that the user's code will be prompted in reverse order: first the code
 after the cursor, then the code before the cursor.
 
-# Default Guidelines
+## Default Guidelines
 
 Guidelines:
 
@@ -57,11 +59,11 @@ Guidelines:
 7. Create entirely new code completion that DO NOT REPEAT OR COPY any user's
    existing code around `<cursorPosition>`.
 
-# Default `:n_completions` template
+## Default `:n_completions` template
 
 8. Provide at most %d completion items.
 
-# Default Few Shots Examples
+## Default Few Shots Examples
 
 ```lisp
 `((:role "user"
@@ -91,7 +93,41 @@ def fibonacci(n):
 "))
 ```
 
-# Customization
+## Default Chat Input Example
+
+The chat input represents the final prompt delivered to the LLM for completion.
+Its template follows a structured format similar to the system prompt and can be
+customized as follows:
+
+The chat input template follows a structure similar to the system prompt and can
+be customized using the following format:
+
+```
+{{{:language-and-tab}}}
+<contextAfterCursor>
+{{{:context-after-cursor}}}
+<contextBeforeCursor>
+{{{:context-before-cursor}}}<cursorPosition>
+```
+
+Components:
+
+- `:language-and-tab`: Specifies the programming language and indentation style
+  utilized by the user
+- `:context-before-cursor`: Contains the text content preceding the cursor
+  position
+- `:context-after-cursor`: Contains the text content following the cursor
+  position
+
+Implementation requires each component to be defined by a function
+that accepts a single parameter `context` and returns a string. This
+context parameter is a plist containing the following values:
+
+- `:before-cursor`
+- `:after-cursor`
+- `:language-and-tab`
+
+## Customization
 
 You can customize the `:template` by encoding placeholders within triple braces.
 These placeholders will be interpolated using the corresponding key-value pairs

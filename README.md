@@ -230,15 +230,14 @@ option has no impact for overlay-based suggesion.
 
 ## minuet-n-completions
 
-For FIM model, this is the number of requests to send. For chat LLM ,
-this is the number of completions encoded as part of the prompt. Note
-that when `minuet-add-single-line-entry` is true, the actual number of
-returned items may exceed this value. Additionally, the LLM cannot
-guarantee the exact number of completion items specified, as this
-parameter serves only as a prompt guideline.  The default is `3`.
+For FIM model, this is the number of requests to send. For chat LLM , this is
+the number of completions encoded as part of the prompt. Note that when
+`minuet-add-single-line-entry` is true, the actual number of returned items may
+exceed this value. Additionally, the LLM cannot guarantee the exact number of
+completion items specified, as this parameter serves only as a prompt guideline.
+The default is `3`.
 
-If resource efficiency is imporant, it is recommended to set this
-value to `1`.
+If resource efficiency is imporant, it is recommended to set this value to `1`.
 
 ## minuet-auto-suggestion-debounce-delay
 
@@ -291,6 +290,11 @@ Below is the default value:
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "config options for Minuet OpenAI provider")
 
@@ -315,6 +319,11 @@ Below is the default value:
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "config options for Minuet Claude provider")
 ```
@@ -374,6 +383,11 @@ The following config is the default.
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "config options for Minuet Gemini provider")
 ```
@@ -423,6 +437,11 @@ The following config is the default.
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
       :fewshots minuet-default-fewshots
+      :chat-input
+      (:template minuet-default-chat-input-template
+       :language-and-tab minuet--default-chat-input-language-and-tab-function
+       :context-before-cursor minuet--default-chat-input-before-cursor-function
+       :context-after-cursor minuet--default-chat-input-after-cursor-function)
       :optional nil)
     "Config options for Minuet OpenAI compatible provider.")
 ```
