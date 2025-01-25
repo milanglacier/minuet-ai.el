@@ -810,6 +810,18 @@ prompt.  CALLBACK is the function to be called when completion items
 arrive."
     (let ((total-try (or minuet-n-completions 1))
           (name (plist-get options :name))
+          (body (json-serialize
+                 `(,@(plist-get options :optional)
+                   :stream t
+                   :model ,(plist-get options :model)
+                   :prompt ,(funcall (--> options
+                                          (plist-get it :template)
+                                          (plist-get it :prompt))
+                                     context)
+                   ,@(when-let* ((suffix-fn (--> options
+                                                 (plist-get it :template)
+                                                 (plist-get it :suffix))))
+                         (list :suffix (funcall suffix-fn context))))))
           completion-items)
         (dotimes (_ total-try)
             (minuet--with-temp-response
@@ -819,19 +831,7 @@ arrive."
                              ("Accept" . "application/json")
                              ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
                   :timeout minuet-request-timeout
-                  :body
-                  (json-serialize
-                   `(,@(plist-get options :optional)
-                     :stream t
-                     :model ,(plist-get options :model)
-                     :prompt ,(funcall (--> options
-                                            (plist-get it :template)
-                                            (plist-get it :prompt))
-                                       context)
-                     ,@(when-let* ((suffix-fn (--> options
-                                                   (plist-get it :template)
-                                                   (plist-get it :suffix))))
-                           (list :suffix (funcall suffix-fn context)))))
+                  :body body
                   :as 'string
                   :filter (minuet--make-process-stream-filter --response--)
                   :then
