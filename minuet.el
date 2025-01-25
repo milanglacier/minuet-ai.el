@@ -509,26 +509,34 @@ Also print the MESSAGE when MESSAGE-P is t."
            (point-max (point-max))
            (n-chars-after (- point-max point))
            (before-start (point-min))
-           (after-end point-max))
+           (after-end point-max)
+           (is-incomplete-before nil)
+           (is-incomplete-after nil))
         ;; Calculate context window boundaries before extracting text
         (when (>= (+ n-chars-before n-chars-after) minuet-context-window)
             (cond ((< n-chars-before (* minuet-context-ratio minuet-context-window))
                    ;; If context before cursor does not exceed context-window,
                    ;; only limit after-cursor content
-                   (setq after-end (+ point (- minuet-context-window n-chars-before))))
+                   (setq after-end (+ point (- minuet-context-window n-chars-before))
+                         is-incomplete-after t))
                   ((< n-chars-after (* (- 1 minuet-context-ratio) minuet-context-window))
                    ;; If context after cursor does not exceed context-window,
                    ;; limit before-cursor content
-                   (setq before-start (- point (- minuet-context-window n-chars-after))))
+                   (setq before-start (- point (- minuet-context-window n-chars-after))
+                         is-incomplete-before t))
                   (t
                    ;; At middle of file, use ratio to determine both boundaries
-                   (setq after-end (+ point (floor (* minuet-context-window (- 1 minuet-context-ratio))))
+                   (setq is-incomplete-before t
+                         is-incomplete-after t
+                         after-end (+ point (floor (* minuet-context-window (- 1 minuet-context-ratio))))
                          before-start (+ (point-min)
                                          (max 0 (- n-chars-before
                                                    (floor (* minuet-context-window minuet-context-ratio)))))))))
         `(:before-cursor ,(buffer-substring-no-properties before-start point)
           :after-cursor ,(buffer-substring-no-properties point after-end)
-          :language-and-tab ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment)))))
+          :language-and-tab ,(format "%s\n%s" (minuet--add-language-comment) (minuet--add-tab-comment))
+          :is-incomplete-before ,is-incomplete-before
+          :is-incomplete-after ,is-incomplete-after)))
 
 (defun minuet--make-chat-llm-shot (context options)
     "Build the final chat input for chat llm.
@@ -1105,12 +1113,22 @@ to be called when completion items arrive."
     (plist-get ctx :language-and-tab))
 
 (defun minuet--default-chat-input-before-cursor-function (ctx)
-    "Default function to get before cursor from CTX."
-    (plist-get ctx :before-cursor))
+    "Default function to get before cursor from CTX.
+If context is incomplete, remove first line to avoid partial code."
+    (let ((text (plist-get ctx :before-cursor))
+          (incomplete (plist-get ctx :is-incomplete-before)))
+        (when incomplete
+            (setq text (replace-regexp-in-string "\\`.*\n" "" text)))
+        text))
 
 (defun minuet--default-chat-input-after-cursor-function (ctx)
-    "Default function to get after cursor from CTX."
-    (plist-get ctx :after-cursor))
+    "Default function to get after cursor from CTX.
+If context is incomplete, remove last line to avoid partial code."
+    (let ((text (plist-get ctx :after-cursor))
+          (incomplete (plist-get ctx :is-incomplete-after)))
+        (when incomplete
+            (setq text (replace-regexp-in-string "\n.*\\'" "" text)))
+        text))
 
 (defun minuet--cleanup-auto-suggestion ()
     "Clean up auto-suggestion timers and hooks."
