@@ -171,7 +171,7 @@ The `gemini-flash` and `codestral` models offer high-quality output with free
 and fast processing. For optimal quality, consider using the `deepseek-chat`
 model, which is compatible with both `openai-fim-compatible` and
 `openai-compatible` providers. For local LLM inference, you can deploy either
-`qwen-coder` or `deepseek-coder` through Ollama using the
+`qwen-2.5-coder` or `deepseek-coder-v2` through Ollama using the
 `openai-fim-compatible` provider.
 
 # Prompt
@@ -474,6 +474,13 @@ For example, you can set the `end_point` to
 `http://localhost:11434/v1/completions` to use `ollama`.
 
 <details>
+
+Additionally, for Ollama users, it is essential to verify whether the model's
+template supports FIM completion. For example,
+[qwen2.5-coder's template](https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327)
+is a supported model. However it may come as a surprise to some users that,
+`deepseek-coder` does not support the FIM template, and you should use
+`deepseek-coder-v2` instead.
 
 The following config is the default.
 
