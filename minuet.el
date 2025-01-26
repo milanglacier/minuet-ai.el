@@ -739,6 +739,13 @@ Return nil if not exists or is an empty string."
                        (getenv api-key)
                    (when (functionp api-key)
                        (funcall api-key)))))
+        (when (or (null key)
+                  (string-empty-p key))
+            (minuet--log
+             (if (stringp api-key)
+                     (format "%s is not a valid environment variable.
+If using ollama you can just set it to 'TERM'." api-key)
+                 "The api-key function returns nil or returns an empty string")))
         (and (not (equal key "")) key)))
 
 
