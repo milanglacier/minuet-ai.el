@@ -2,7 +2,7 @@
 
 ;; Author: Milan Glacier <dev@milanglacier.com>
 ;; Maintainer: Milan Glacier <dev@milanglacier.com>
-;; Version: 0.1
+;; Version: 0.3
 ;; URL: https://github.com/milanglacier/minuet-ai.el
 ;; Package-Requires: ((emacs "29") (plz "0.9") (dash "2.19.1"))
 
@@ -26,9 +26,18 @@
 ;; Floor, Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
-;; This package implements an AI-powered code completion tool for
-;; Emacs.  It supports to use a variety of LLMs to generate code
-;; completions.
+;; AI-powered code completion with dual modes:
+;;
+;; - Specialized prompts and various enhancements for chat-based LLMs on code completion tasks.
+;; - Fill-in-the-middle (FIM) completion for compatible models (DeepSeek, Codestral, and some Ollama models).
+;;
+;; Minuet supports multiple AI providers (OpenAI, Claude, Gemini,
+;; Codestral, Ollama, and OpenAI-compatible providers)
+;;
+;; You can use it with overlay-based popup via
+;; `minuet-show-suggestion' or selecting the candidates via
+;; `minuet-complete-with-minibuffer'.  You can toggle automatic
+;; suggestion popup with `minuet-auto-suggestion-mode'.
 
 ;;; Code:
 

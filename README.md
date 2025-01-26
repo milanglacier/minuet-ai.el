@@ -56,13 +56,15 @@ Just as dancers move during a minuet.
 
 # Installation
 
-Currently you need to install from github via `package-vc` or `straight`, or
-manually install this package.
+`minuet` is available on MELPA and can be installed using your preferred package
+managers.
 
 ```elisp
 
+;; install with package.el
+(package-install 'minuet)
 ;; install with straight
-(straight-use-package '(minuet :host github :repo "milanglacier/minuet-ai.el"))
+(straight-use-package 'minuet)
 
 (use-package minuet
     :bind
@@ -512,11 +514,13 @@ If your setup failed, there are two most likely reasons:
 
 1. You are setting the API key to a literal value instead of the environment
    variable name.
-2. You are using a context window that is too large, causing completion items
-   to timeout before returning. It is recommended to:
+2. You are using a model or a context window that is too large, causing
+   completion items to timeout before returning any tokens. It is recommended
+   to:
    - Test with manual completion first
    - Use a smaller context window (e.g., `context_window = 768`)
-   - Set a longer request timeout (e.g., `request_timeout = 5`) to
-     evaluate your provider's response time
+   - Use a smaller model
+   - Set a longer request timeout (e.g., `request_timeout = 5`) to evaluate your
+     provider's inference latency.
 
-To diagnose issues, examine the buffer content from `*minut*`
+To diagnose issues, examine the buffer content from `*minuet*`.
