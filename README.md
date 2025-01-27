@@ -244,7 +244,7 @@ If resource efficiency is imporant, it is recommended to set this value to `1`.
 ## minuet-auto-suggestion-debounce-delay
 
 The delay in seconds before sending a completion request after typing stops. The
-default is `0.2` seconds.
+default is `0.4` seconds.
 
 ## minuet-auto-suggestion-throttle-delay
 

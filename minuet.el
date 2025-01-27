@@ -52,7 +52,7 @@
 (declare-function evil-emacs-state-p "evil-states")
 (declare-function evil-insert-state-p "evil-states")
 
-(defcustom minuet-auto-suggestion-debounce-delay 0.2
+(defcustom minuet-auto-suggestion-debounce-delay 0.4
     "Debounce delay in seconds for auto-suggestions."
     :type 'number
     :group 'minuet)
