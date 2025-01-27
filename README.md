@@ -170,11 +170,11 @@ function should be fast as it will be called with each completion request.
 # Selecting a Provider or Model
 
 The `gemini-flash` and `codestral` models offer high-quality output with free
-and fast processing. For optimal quality, consider using the `deepseek-chat`
-model, which is compatible with both `openai-fim-compatible` and
-`openai-compatible` providers. For local LLM inference, you can deploy either
-`qwen-2.5-coder` or `deepseek-coder-v2` through Ollama using the
-`openai-fim-compatible` provider.
+and fast processing. For optimal quality (albeit slower generation speed),
+consider using the `deepseek-chat` model, which is compatible with both
+`openai-fim-compatible` and `openai-compatible` providers. For local LLM
+inference, you can deploy either `qwen-2.5-coder` or `deepseek-coder-v2` through
+Ollama using the `openai-fim-compatible` provider.
 
 # Prompt
 
@@ -515,12 +515,12 @@ If your setup failed, there are two most likely reasons:
 1. You are setting the API key to a literal value instead of the environment
    variable name.
 2. You are using a model or a context window that is too large, causing
-   completion items to timeout before returning any tokens. It is recommended
-   to:
-   - Test with manual completion first
-   - Use a smaller context window (e.g., `context_window = 768`)
+   completion items to timeout before returning any tokens. This is particularly
+   common with local LLM. It is recommended to start with the following settings
+   to have a better understanding of your provider's inference speed.
+   - Begin by testing with manual completions.
+   - Use a smaller context window (e.g., `context-window = 768`)
    - Use a smaller model
-   - Set a longer request timeout (e.g., `request_timeout = 5`) to evaluate your
-     provider's inference latency.
+   - Set a longer request timeout (e.g., `request-timeout = 5`)
 
 To diagnose issues, examine the buffer content from `*minuet*`.
