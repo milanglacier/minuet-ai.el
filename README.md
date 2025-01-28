@@ -97,7 +97,9 @@ managers.
 
 ```
 
-Example for Ollama:
+**LLM Provider Examples**:
+
+**Ollama (`qwen-2.5-coder:3b`)**:
 
 <details>
 
@@ -119,7 +121,7 @@ Example for Ollama:
 
 </details>
 
-Example for Fireworks with `llama-3.3-70b` model:
+**Fireworks (`llama-3.3-70b`)**:
 
 <details>
 
@@ -178,8 +180,8 @@ Ollama using the `openai-fim-compatible` provider.
 
 Note: as of January 27, 2025, the high server demand from deepseek may
 significantly slow down the default provider used by Minuet
-(`openai-fim-compatible` with deepseek). We recommend trying
-alternative providers instead.
+(`openai-fim-compatible` with deepseek). We recommend trying alternative
+providers instead.
 
 # Prompt
 
@@ -273,7 +275,7 @@ You can customize the provider options using `plist-put`, for example:
 )
 ```
 
-To pass optional parameters (like `max_tokens` and `top_p`) to send to the REST
+To pass optional parameters (like `max_tokens` and `top_p`) to send to the curl
 request, you can use function `minuet-set-optional-options`:
 
 ```lisp
@@ -483,11 +485,11 @@ For example, you can set the `end_point` to
 <details>
 
 Additionally, for Ollama users, it is essential to verify whether the model's
-template supports FIM completion. For example,
-[qwen2.5-coder's template](https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327)
-is a supported model. However it may come as a surprise to some users that,
-`deepseek-coder` does not support the FIM template, and you should use
-`deepseek-coder-v2` instead.
+template supports FIM completion. For example, qwen2.5-coder offers FIM support,
+as suggested in its
+[template]((https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327).
+However it may come as a surprise to some users that, `deepseek-coder` does not
+support the FIM template, and you should use `deepseek-coder-v2` instead.
 
 The following config is the default.
 

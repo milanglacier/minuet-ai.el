@@ -107,8 +107,6 @@ def fibonacci(n):
 ## Default Chat Input Example
 
 The chat input represents the final prompt delivered to the LLM for completion.
-Its template follows a structured format similar to the system prompt and can be
-customized as follows:
 
 The chat input template follows a structure similar to the system prompt and can
 be customized using the following format:
@@ -137,6 +135,10 @@ plist containing the following values:
 - `:before-cursor`
 - `:after-cursor`
 - `:language-and-tab`
+- `:is-incomplete-before`: indicates whether the context before the cursor is
+  incomplete
+- `:is-incomplete-after`: indicates whether the context after the cursor is
+  incomplete
 
 ## Customization
 
