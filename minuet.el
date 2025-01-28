@@ -51,6 +51,8 @@
 
 (declare-function evil-emacs-state-p "evil-states")
 (declare-function evil-insert-state-p "evil-states")
+(declare-function consult--read "consult")
+(declare-function consult--insertion-preview "consult")
 
 (defcustom minuet-auto-suggestion-debounce-delay 0.4
     "Debounce delay in seconds for auto-suggestions."
@@ -720,7 +722,14 @@ many lines.  Without a prefix argument, accept only the first line."
     (let ((current-buffer (current-buffer))
           (available-p-fn (intern (format "minuet--%s-available-p" minuet-provider)))
           (complete-fn (intern (format "minuet--%s-complete" minuet-provider)))
-          (context (minuet--get-context)))
+          (context (minuet--get-context))
+          (completing-read (lambda (items) (completing-read "Complete: " items nil t)))
+          (consult--read (lambda (items)
+                             (consult--read
+                              items
+                              :prompt "Complete: "
+                              :require-match t
+                              :state (consult--insertion-preview (point) (point))))))
         (unless (funcall available-p-fn)
             (minuet--log (format "Minuet provider %s is not available" minuet-provider))
             (error "Minuet provider %s is not available" minuet-provider))
@@ -735,10 +744,12 @@ many lines.  Without a prefix argument, accept only the first line."
                          ;; close current minibuffer session, if any
                          (when (active-minibuffer-window)
                              (abort-recursive-edit))
-                         (when items
-                             (when-let* ((selected (completing-read "Complete: " items nil t)))
-                                 (unless (string-empty-p selected)
-                                     (insert selected)))))))))
+                         (when-let* ((items)
+                                     (selected (funcall
+                                                (if (require 'consult nil t) consult--read completing-read)
+                                                items)))
+                             (unless (string-empty-p selected)
+                                 (insert selected))))))))
 
 (defun minuet--get-api-key (api-key)
     "Get the api-key from API-KEY.
