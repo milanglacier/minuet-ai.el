@@ -407,11 +407,12 @@ Also cancel any pending requests unless NO-CANCEL is t."
               minuet--current-suggestion-index index
               minuet--last-point (point))
         (overlay-put ov 'after-string
-                     (propertize (format "%s (%d/%d)"
-                                         suggestion
-                                         (1+ index)
-                                         total)
-                                 'face 'minuet-suggestion-face))
+                     (propertize
+                      (format "%s%s"
+                              suggestion
+                              (if (= total minuet-n-completions 1) ""
+                                  (format " (%d/%d)" (1+ index) total)))
+                      'face 'minuet-suggestion-face))
         (overlay-put ov 'minuet t)
         (setq minuet--current-overlay ov)
         (minuet-active-mode 1)))
