@@ -176,6 +176,11 @@ consider using the `deepseek-chat` model, which is compatible with both
 inference, you can deploy either `qwen-2.5-coder` or `deepseek-coder-v2` through
 Ollama using the `openai-fim-compatible` provider.
 
+Note: as of January 27, 2025, the high server demand from deepseek may
+significantly slow down the default provider used by Minuet
+(`openai-fim-compatible` with deepseek). We recommend trying
+alternative providers instead.
+
 # Prompt
 
 See [prompt](./prompt.md) for the default prompt used by `minuet` and
