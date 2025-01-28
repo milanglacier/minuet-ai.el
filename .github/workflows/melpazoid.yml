@@ -21,6 +21,6 @@ jobs:
     - name: Run
       env:
         LOCAL_REPO: ${{ github.workspace }}
-        RECIPE: (minuet :repo "milanglacier/minuet-ai.el" :fetcher github)
+        RECIPE: (minuet :fetcher github :repo "milanglacier/minuet-ai.el")
         EXIST_OK: false
       run: echo $GITHUB_REF && make -C ~/melpazoid
