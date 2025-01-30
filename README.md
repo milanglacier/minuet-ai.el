@@ -487,9 +487,9 @@ For example, you can set the `end_point` to
 Additionally, for Ollama users, it is essential to verify whether the model's
 template supports FIM completion. For example, qwen2.5-coder offers FIM support,
 as suggested in its
-[template]((https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327).
-However it may come as a surprise to some users that, `deepseek-coder` does not
-support the FIM template, and you should use `deepseek-coder-v2` instead.
+[template](https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327). However
+it may come as a surprise to some users that, `deepseek-coder` does not support
+the FIM template, and you should use `deepseek-coder-v2` instead.
 
 The following config is the default.
 
