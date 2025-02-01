@@ -159,7 +159,8 @@ If using Ollama, you need to assign an arbitrary, non-null environment variable
 as a placeholder for it to function.
 
 Alternatively, you can provide a function that returns the API key. This
-function should be fast as it will be called with each completion request.
+function should return the result instantly as it will be called with each
+completion request.
 
 ```lisp
 ;; Good
@@ -519,8 +520,8 @@ request timeout from outputing too many tokens.
 
 If your setup failed, there are two most likely reasons:
 
-1. You are setting the API key to a literal value instead of the environment
-   variable name.
+1. You may set the API key incorrectly. Checkout the [API Key](#api-keys)
+   section to see how to correctly specify the API key.
 2. You are using a model or a context window that is too large, causing
    completion items to timeout before returning any tokens. This is particularly
    common with local LLM. It is recommended to start with the following settings
