@@ -379,8 +379,8 @@ request timeout from outputing too many tokens.
 
 ## Gemini
 
-You should use the end point from Google AI Studio instead of Google Cloud. You
-can get an API key via their
+You should register the account and use the service from Google AI Studio
+instead of Google Cloud. You can get an API key via their
 [Google API page](https://makersuite.google.com/app/apikey).
 
 <details>
@@ -389,7 +389,7 @@ The following config is the default.
 
 ```lisp
 (defvar minuet-gemini-options
-    `(:model "gemini-1.5-flash-latest"
+    `(:model "gemini-2.0-flash"
       :api-key "GEMINI_API_KEY"
       :system
       (:template minuet-default-system-template
