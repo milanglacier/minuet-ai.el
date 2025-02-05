@@ -317,7 +317,7 @@ def fibonacci(n):
     "Config options for Minuet OpenAI FIM compatible provider.")
 
 (defvar minuet-gemini-options
-    `(:model "gemini-1.5-flash-latest"
+    `(:model "gemini-2.0-flash"
       :api-key "GEMINI_API_KEY"
       :system
       (:template minuet-default-system-template
