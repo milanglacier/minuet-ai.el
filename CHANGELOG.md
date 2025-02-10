@@ -1,3 +1,9 @@
+# Version 0.4.1 (2025-02-10)
+
+## Bug Fixes
+
+- Fix minuet version.
+
 # Version 0.4.0 (2025-02-10)
 
 ## Breaking Changes
