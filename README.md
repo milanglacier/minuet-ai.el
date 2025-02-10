@@ -4,7 +4,7 @@
 - [Installation](#installation)
 - [API Keys](#api-keys)
 - [Selecting a Provider or Model](#selecting-a-provider-or-model)
-- [System Prompt](#system-prompt)
+- [Prompt](#prompt)
 - [Configuration](#configuration)
   - [minuet-provider](#minuet-provider)
   - [minuet-context-window](#minuet-context-window)
