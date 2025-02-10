@@ -1188,8 +1188,5 @@ When enabled, Minuet will automatically show suggestions while you type."
     :init-value nil
     :keymap minuet-active-mode-map)
 
-;;;###autoload
-(define-obsolete-function-alias 'minuet-completion-in-region #'minuet-complete-with-minibuffer "0.2")
-
 (provide 'minuet)
 ;;; minuet.el ends here
