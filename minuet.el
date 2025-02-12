@@ -404,10 +404,18 @@ Also cancel any pending requests unless NO-CANCEL is t."
                 (index (or index 0))
                 (total (length suggestions))
                 (suggestion (nth index suggestions))
-                (ov (make-overlay (point) (point))))
+                ;; Ensure the overlay appears after the cursor If
+                ;; point is not at end-of-line, offset the overlay
+                ;; position by 1
+                (ov-point (if (eolp) (point) (1+ (point))))
+                (ov (make-overlay ov-point ov-point)))
         (setq minuet--current-suggestions suggestions
               minuet--current-suggestion-index index
               minuet--last-point (point))
+        ;; HACK: Adapted from copilot.el We add a 'cursor text property to the
+        ;; first character of the suggestion to simulate the visual effect of
+        ;; placing the overlay after the cursor
+        (put-text-property 0 1 'cursor t suggestion)
         (overlay-put ov 'after-string
                      (propertize
                       (format "%s%s"
