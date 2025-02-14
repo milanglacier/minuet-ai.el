@@ -1,3 +1,14 @@
+# Version 0.4.2 (2025-02-13)
+
+## Breaking Changes
+- Change claude default model to haiku-3.5.
+
+## Features
+- Add command `minuet-configure-provider`.
+
+## Bug Fixes
+- Ensure overlay is put after cursor.
+
 # Version 0.4.1 (2025-02-10)
 
 ## Bug Fixes
