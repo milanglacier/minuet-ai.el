@@ -1196,5 +1196,44 @@ When enabled, Minuet will automatically show suggestions while you type."
     :init-value nil
     :keymap minuet-active-mode-map)
 
+;;;###autoload
+(defun minuet-configure-provider ()
+    "Configure a minuet provider interactively.
+This command offers an interactive approach to configuring provider
+settings, as an alternative to manual configuration via `setq' and
+`plist-put'. When selecting either `openai-compatible' or
+`openai-fim-compatible' providers, users will be prompted to specify
+their endpoint and API key."
+    (interactive)
+    (let* ((providers '(("OpenAI" . openai)
+                        ("Claude" . claude)
+                        ("Codestral" . codestral)
+                        ("OpenAI Compatible" . openai-compatible)
+                        ("OpenAI FIM Compatible" . openai-fim-compatible)
+                        ("Gemini" . gemini)))
+           (provider-name (completing-read "Select provider: " providers nil t))
+           (provider (alist-get provider-name providers nil nil #'equal))
+           (options-sym (intern (format "minuet-%s-options" provider)))
+           (options (symbol-value options-sym))
+           (current-model (plist-get options :model))
+           (model (read-string "Model: " (or current-model ""))))
+
+        (setf (plist-get (symbol-value options-sym) :model) model)
+
+        ;; For OpenAI compatible providers, also configure endpoint and API key
+        (when (memq provider '(openai-compatible openai-fim-compatible))
+            (let* ((current-endpoint (plist-get options :end-point))
+                   (current-api-key (plist-get options :api-key))
+                   (endpoint (read-string "Endpoint URL: " (or current-endpoint "")))
+                   (api-key (read-string "API Key Environment Variable: "
+                                         (if (stringp current-api-key)
+                                                 current-api-key
+                                             ""))))
+                (setf (plist-get (symbol-value options-sym) :end-point) endpoint)
+                (setf (plist-get (symbol-value options-sym) :api-key) api-key)))
+
+        (setq minuet-provider provider)
+        (message "Minuet provider configured to %s with model %s" provider-name model)))
+
 (provide 'minuet)
 ;;; minuet.el ends here

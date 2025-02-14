@@ -70,7 +70,7 @@ managers.
     :bind
     (("M-y" . #'minuet-complete-with-minibuffer) ;; use minibuffer for completion
      ("M-i" . #'minuet-show-suggestion) ;; use overlay for completion
-
+     ("C-c m" . #'minuet-configure-provider)
      :map minuet-active-mode-map
      ;; These keymaps activate only when a minuet suggestion is displayed in the current buffer
      ("M-p" . #'minuet-previous-suggestion) ;; invoke completion or cycle to next completion
@@ -87,6 +87,7 @@ managers.
     (add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
 
     :config
+    ;; You can use M-x minuet-configure-provider to interactively configure provider and model
     (setq minuet-provider 'openai-fim-compatible)
 
     ;; Required when defining minuet-ative-mode-map in insert/normal states.
@@ -324,7 +325,7 @@ Below is the default value:
 
 ```lisp
 (defvar minuet-claude-options
-    `(:model "claude-3-5-sonnet-20241022"
+    `(:model "claude-3-5-haiku-20241022"
       :max_tokens 512
       :api-key "ANTHROPIC_API_KEY"
       :system
