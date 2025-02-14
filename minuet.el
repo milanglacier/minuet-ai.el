@@ -1218,7 +1218,7 @@ their endpoint and API key."
            (current-model (plist-get options :model))
            (model (read-string "Model: " (or current-model ""))))
 
-        (setf (plist-get (symbol-value options-sym) :model) model)
+        (plist-put options :model model)
 
         ;; For OpenAI compatible providers, also configure endpoint and API key
         (when (memq provider '(openai-compatible openai-fim-compatible))
@@ -1229,8 +1229,8 @@ their endpoint and API key."
                                          (if (stringp current-api-key)
                                                  current-api-key
                                              ""))))
-                (setf (plist-get (symbol-value options-sym) :end-point) endpoint)
-                (setf (plist-get (symbol-value options-sym) :api-key) api-key)))
+                (plist-put options :end-point endpoint)
+                (plist-put options :api-key api-key)))
 
         (setq minuet-provider provider)
         (message "Minuet provider configured to %s with model %s" provider-name model)))
