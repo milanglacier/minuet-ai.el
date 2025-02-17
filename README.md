@@ -43,7 +43,7 @@ Just as dancers move during a minuet.
 
 ![example-completion-in-region](./assets/minuet-completion-in-region.jpg)
 
-**With overlay frontend**:
+**With overlay ghost text frontend**:
 
 ![example-overlay](./assets/minuet-overlay.jpg)
 

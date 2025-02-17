@@ -36,7 +36,7 @@
 ;; Minuet supports multiple AI providers (OpenAI, Claude, Gemini,
 ;; Codestral, Ollama, and OpenAI-compatible providers)
 ;;
-;; You can use it with overlay-based popup via
+;; You can use it with overlay-based ghost text via
 ;; `minuet-show-suggestion' or selecting the candidates via
 ;; `minuet-complete-with-minibuffer'.  You can toggle automatic
 ;; suggestion popup with `minuet-auto-suggestion-mode'.
