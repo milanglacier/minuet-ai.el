@@ -196,6 +196,9 @@ llama-server \
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 56))
 ```
 
+For additional example bash scripts to run llama.cpp based on your local
+computing power, please refer to [recipes.md](./recipes.md).
+
 </details>
 
 # API Keys
@@ -540,7 +543,8 @@ text completion API, not chat completion, so system prompts and few-shot
 examples are not applicable.
 
 For example, you can set the `end_point` to
-`http://localhost:11434/v1/completions` to use `ollama`.
+`http://localhost:11434/v1/completions` to use `ollama`, or set it to
+`http://localhost:8012/v1/completions` to use `llama.cpp`.
 
 <details>
 
@@ -573,6 +577,11 @@ request timeout from outputing too many tokens.
 (minuet-set-optional-options minuet-openai-fim-compatible-options :top_p 0.9)
 ```
 
+For example bash scripts to run llama.cpp based on your local
+computing power, please refer to [recipes.md](./recipes.md). Note
+that the model for `llama.cpp` must be determined when you launch the
+`llama.cpp` server and cannot be changed thereafter.
+
 </details>
 
 # Troubleshooting
@@ -594,7 +603,7 @@ To diagnose issues, examine the buffer content from `*minuet*`.
 
 # Acknowledgement
 
-- [continue.dev](https://www.continue.dev): not a emacs plugin, but I find a
-  lot LLM models from here.
+- [continue.dev](https://www.continue.dev): not a emacs plugin, but I find a lot
+  LLM models from here.
 - [llama.vim](https://github.com/ggml-org/llama.vim): Reference for CLI
   parameters used to launch the llama-cpp server.
