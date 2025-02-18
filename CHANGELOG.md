@@ -1,3 +1,9 @@
+# Version 0.4.3 (2025-02-18)
+
+## Documentation
+
+- Added recipes for llama.cpp.
+
 # Version 0.4.2 (2025-02-13)
 
 ## Breaking Changes

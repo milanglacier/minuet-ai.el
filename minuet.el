@@ -2,7 +2,7 @@
 
 ;; Author: Milan Glacier <dev@milanglacier.com>
 ;; Maintainer: Milan Glacier <dev@milanglacier.com>
-;; Version: 0.4.2
+;; Version: 0.4.3
 ;; URL: https://github.com/milanglacier/minuet-ai.el
 ;; Package-Requires: ((emacs "29") (plz "0.9") (dash "2.19.1"))
 
@@ -34,7 +34,7 @@
 ;;   (DeepSeek, Codestral, and some Ollama models).
 ;;
 ;; Minuet supports multiple AI providers (OpenAI, Claude, Gemini,
-;; Codestral, Ollama, and OpenAI-compatible providers)
+;; Codestral, Ollama, Llama.cpp, and OpenAI-compatible providers)
 ;;
 ;; You can use it with overlay-based ghost text via
 ;; `minuet-show-suggestion' or selecting the candidates via
