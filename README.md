@@ -35,7 +35,7 @@ Just as dancers move during a minuet.
   - Fill-in-the-middle (FIM) completion for compatible models (DeepSeek,
     Codestral, and some Ollama models).
 - Support for multiple AI providers (OpenAI, Claude, Gemini, Codestral, Ollama,
-  and OpenAI-compatible providers)
+  Llama.cpp and OpenAI-compatible providers)
 - Customizable configuration options
 - Streaming support to enable completion delivery even with slower LLMs
 
@@ -138,8 +138,62 @@ managers.
     (plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
     (plist-put minuet-openai-compatible-options :model "accounts/fireworks/models/llama-v3p3-70b-instruct")
 
-    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 256)
+    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 56)
     (minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9))
+```
+
+</details>
+
+**Llama.cpp (`qwen-2.5-coder:1.5b`)**:
+
+<details>
+
+First, launch the `llama-server` with your chosen model.
+
+Here's an example of a bash script to start the server if your system has less
+than 8GB of VRAM:
+
+```bash
+llama-server \
+    -hf ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF \
+    --port 8012 -ngl 99 -fa -ub 1024 -b 1024 \
+    --ctx-size 0 --cache-reuse 256
+```
+
+```elisp
+(use-package minuet
+    :config
+    (setq minuet-provider 'openai-fim-compatible)
+    (setq minuet-n-completions 1) ; recommended for Local LLM for resource saving
+    ;; I recommend beginning with a small context window size and incrementally
+    ;; expanding it, depending on your local computing power. A context window
+    ;; of 512, serves as an good starting point to estimate your computing
+    ;; power. Once you have a reliable estimate of your local computing power,
+    ;; you should adjust the context window to a larger value.
+    (setq minuet-context-window 512)
+    (plist-put minuet-openai-fim-compatible-options :end-point "http://localhost:8012/v1/completions")
+    ;; an arbitrary non-null environment variable as placeholder
+    (plist-put minuet-openai-fim-compatible-options :name "Llama.cpp")
+    (plist-put minuet-openai-fim-compatible-options :api-key "TERM")
+    ;; The model is set by the llama-cpp server and cannot be altered
+    ;; post-launch.
+    (plist-put minuet-openai-fim-compatible-options :model "PLACEHOLDER")
+
+    ;; Llama.cpp does not support the `suffix` option in FIM completion.
+    ;; Therefore, we must disable it and manually populate the special
+    ;; tokens required for FIM completion.
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :suffix nil :template)
+    (minuet-set-optional-options
+     minuet-openai-fim-compatible-options
+     :prompt
+     (defun minuet-llama-cpp-fim-qwen-prompt-function (ctx)
+         (format "<fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
+                 (plist-get ctx :language-and-tab)
+                 (plist-get ctx :before-cursor)
+                 (plist-get ctx :after-cursor)))
+     :template)
+
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 56))
 ```
 
 </details>
@@ -537,3 +591,10 @@ If your setup failed, there are two most likely reasons:
    - Set a longer request timeout (e.g., `request-timeout = 5`)
 
 To diagnose issues, examine the buffer content from `*minuet*`.
+
+# Acknowledgement
+
+- [continue.dev](https://www.continue.dev): not a emacs plugin, but I find a
+  lot LLM models from here.
+- [llama.vim](https://github.com/ggml-org/llama.vim): Reference for CLI
+  parameters used to launch the llama-cpp server.
