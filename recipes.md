@@ -59,7 +59,7 @@ llama-server \
      minuet-openai-fim-compatible-options
      :prompt
      (defun minuet-llama-cpp-fim-qwen-prompt-function (ctx)
-         (format "<fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
+         (format "<|fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
                  (plist-get ctx :language-and-tab)
                  (plist-get ctx :before-cursor)
                  (plist-get ctx :after-cursor)))
@@ -67,6 +67,14 @@ llama-server \
 
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 56))
 ```
+
+> [!NOTE]
+> Symbols like `<|fim_begin|>` and `<|fim_suffix|>` are special tokens
+> that serve as prompt boundaries. Some LLMs, like Qwen2.5-Coder, have
+> been trained with specific tokens to better understand prompt
+> composition. Different LLMs use different special tokens during
+> training, so you should adjust these tokens according to your
+> preferred LLM.
 
 ## **Acknowledgment**
 

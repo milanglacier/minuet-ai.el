@@ -187,7 +187,7 @@ llama-server \
      minuet-openai-fim-compatible-options
      :prompt
      (defun minuet-llama-cpp-fim-qwen-prompt-function (ctx)
-         (format "<fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
+         (format "<|fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
                  (plist-get ctx :language-and-tab)
                  (plist-get ctx :before-cursor)
                  (plist-get ctx :after-cursor)))
