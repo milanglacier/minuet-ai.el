@@ -121,12 +121,12 @@ managers.
     (plist-put minuet-openai-fim-compatible-options :api-key "TERM")
     (plist-put minuet-openai-fim-compatible-options :model "qwen2.5-coder:3b")
 
-    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 56))
 ```
 
 </details>
 
-**Fireworks (`llama-3.3-70b`)**:
+**Openrouter (`llama-3.3-70b`)**:
 
 <details>
 
@@ -134,11 +134,18 @@ managers.
 (use-package minuet
     :config
     (setq minuet-provider 'openai-compatible)
-    (plist-put minuet-openai-compatible-options :end-point "https://api.fireworks.ai/inference/v1/chat/completions")
-    (plist-put minuet-openai-compatible-options :api-key "FIREWORKS_API_KEY")
-    (plist-put minuet-openai-compatible-options :model "accounts/fireworks/models/llama-v3p3-70b-instruct")
+    (setq minuet-request-timeout 2.5)
+    (setq minuet-auto-suggestion-throttle-delay 1.5) ;; Increase to reduce costs and avoid rate limits
+    (setq minuet-auto-suggestion-debounce-delay 0.6) ;; Increase to reduce costs and avoid rate limits
 
-    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 56)
+    (plist-put minuet-openai-compatible-options :end-point "https://openrouter.ai/api/v1/chat/completions")
+    (plist-put minuet-openai-compatible-options :api-key "OPENROUTER_API_KEY")
+    (plist-put minuet-openai-compatible-options :model "meta-llama/llama-3.3-70b-instruct")
+
+
+    ;; Prioritize throughput for faster completion
+    (minuet-set-optional-options minuet-openai-compatible-options :provider '(:sort "throughput"))
+    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 128)
     (minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9))
 ```
 
