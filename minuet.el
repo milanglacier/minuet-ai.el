@@ -1225,12 +1225,16 @@ their endpoint and API key."
             (let* ((current-endpoint (plist-get options :end-point))
                    (current-api-key (plist-get options :api-key))
                    (endpoint (read-string "Endpoint URL: " (or current-endpoint "")))
-                   (api-key (read-string "API Key Environment Variable: "
-                                         (if (stringp current-api-key)
-                                                 current-api-key
-                                             ""))))
+                   (api-key (read-string "API Key Environment Variable or Function: "
+                                         (cond ((stringp current-api-key) current-api-key)
+                                               ((symbolp current-api-key) (symbol-name current-api-key))
+                                               (t ""))))
+                   ;; If the user enters nothing via `read-string`, retain the current API key.
+                   (final-api-key (cond ((equal "" api-key) current-api-key)
+                                        ((functionp (intern api-key)) (intern api-key))
+                                        (t api-key))))
                 (plist-put options :end-point endpoint)
-                (plist-put options :api-key api-key)))
+                (plist-put options :api-key final-api-key)))
 
         (setq minuet-provider provider)
         (message "Minuet provider configured to %s with model %s" provider-name model)))
