@@ -1231,7 +1231,7 @@ their endpoint and API key."
                                                (t ""))))
                    ;; If the user enters nothing via `read-string`, retain the current API key.
                    (final-api-key (cond ((equal "" api-key) current-api-key)
-                                        ((functionp (intern api-key)) (intern api-key))
+                                        ((functionp (intern-soft api-key)) (intern-soft api-key))
                                         (t api-key))))
                 (plist-put options :end-point endpoint)
                 (plist-put options :api-key final-api-key)))
