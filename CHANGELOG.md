@@ -1,18 +1,35 @@
+# Version 0.4.4 (2025-03-10)
+
+## Features
+
+- `minuet-configure-provider` can configure api-key as a named function.
+
+## Documentation
+
+- Update LLM provider example from Fireworks to Openrouter.
+
+## Chore
+
+- Reformat the code using 2 spaces indent.
+
 # Version 0.4.3 (2025-02-18)
 
 ## Documentation
 
-- Added recipes for llama.cpp.
+- Add recipes for llama.cpp.
 
 # Version 0.4.2 (2025-02-13)
 
 ## Breaking Changes
+
 - Change claude default model to haiku-3.5.
 
 ## Features
+
 - Add command `minuet-configure-provider`.
 
 ## Bug Fixes
+
 - Ensure overlay is put after cursor.
 
 # Version 0.4.1 (2025-02-10)
