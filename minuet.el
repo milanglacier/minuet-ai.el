@@ -817,24 +817,14 @@ If using ollama you can just set it to 'TERM'." api-key)
                                    "")))
     (setq tmpl (replace-regexp-in-string "{{{:n-completions-template}}}"
                                          n-completions-template
-                                         tmpl))
-    (map-do
-     (lambda (k v)
-       (setq v (minuet--eval-value v))
-       (when (and (not (equal k :template))
-                  (not (equal k :n-completions-template))
-                  (stringp v))
-         (setq tmpl
-               (replace-regexp-in-string
-                (concat "{{{" (symbol-name k) "}}}")
-                v
-                tmpl))))
-     template)
-    ;; replace placeholders that are not replaced
-    (setq tmpl (replace-regexp-in-string "{{{.*}}}"
-                                         ""
-                                         tmpl))
-    tmpl))
+                                         tmpl)
+          tmpl (replace-regexp-in-string
+                "{{{\\([^{}]+\\)}}}"
+                (lambda (str)
+                  (minuet--eval-value (plist-get template (intern (match-string 1 str)))))
+                tmpl)
+          ;; replace placeholders that are not replaced
+          tmpl (replace-regexp-in-string "{{{.*}}}" "" tmpl))))
 
 (defun minuet--openai-fim-complete-base (options get-text-fn context callback)
   "The base function to complete code with openai fim API.
