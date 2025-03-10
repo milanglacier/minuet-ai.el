@@ -2,3 +2,7 @@
 .DS_Store
 .aider*
 *.elc
+
+# ELPA-generated files
+/minuet-autoloads.el
+/minuet-pkg.el
