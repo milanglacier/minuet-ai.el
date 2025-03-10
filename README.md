@@ -49,7 +49,7 @@ Just as dancers move during a minuet.
 
 # Requirements
 
-- emacs 29+
+- emacs 29+ compiled with native JSON support (verify with `json-available-p`).
 - plz 0.9+
 - dash
 - An API key for at least one of the supported AI providers
