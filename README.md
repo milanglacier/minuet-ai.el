@@ -90,8 +90,12 @@ managers.
     ;; You can use M-x minuet-configure-provider to interactively configure provider and model
     (setq minuet-provider 'openai-fim-compatible)
 
+    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 64))
+
     ;; For Evil users: When defining `minuet-ative-mode-map` in insert
     ;; or normal states, the following one-liner is required.
+
+    ;; (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
 
     ;; This is *not* necessary when defining `minuet-active-mode-map`.
 
@@ -101,10 +105,6 @@ managers.
     ;; standard Emacs key sequences, such as `M-xxx`. This approach should
     ;; not conflict with Evil's keybindings, as Evil primarily avoids
     ;; using `M-xxx` bindings.
-
-    ;; (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
-
-    (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
 
 ```
 
