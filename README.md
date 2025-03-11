@@ -90,9 +90,19 @@ managers.
     ;; You can use M-x minuet-configure-provider to interactively configure provider and model
     (setq minuet-provider 'openai-fim-compatible)
 
-    ;; Required when defining minuet-ative-mode-map in insert/normal states.
-    ;; Not required when defining minuet-active-mode-map without evil state.
-    (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
+    ;; For Evil users: When defining `minuet-ative-mode-map` in insert
+    ;; or normal states, the following one-liner is required.
+
+    ;; This is *not* necessary when defining `minuet-active-mode-map`.
+
+    ;; To minimize frequent overhead, it is recommended to avoid adding
+    ;; `evil-normalize-keymaps` to `minuet-active-mode-hook`. Instead,
+    ;; bind keybindings directly within `minuet-active-mode-map` using
+    ;; standard Emacs key sequences, such as `M-xxx`. This approach should
+    ;; not conflict with Evil's keybindings, as Evil primarily avoids
+    ;; using `M-xxx` bindings.
+
+    ;; (add-hook 'minuet-active-mode-hook #'evil-normalize-keymaps)
 
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 256))
 
@@ -584,10 +594,10 @@ request timeout from outputing too many tokens.
 (minuet-set-optional-options minuet-openai-fim-compatible-options :top_p 0.9)
 ```
 
-For example bash scripts to run llama.cpp based on your local
-computing power, please refer to [recipes.md](./recipes.md). Note
-that the model for `llama.cpp` must be determined when you launch the
-`llama.cpp` server and cannot be changed thereafter.
+For example bash scripts to run llama.cpp based on your local computing power,
+please refer to [recipes.md](./recipes.md). Note that the model for `llama.cpp`
+must be determined when you launch the `llama.cpp` server and cannot be changed
+thereafter.
 
 </details>
 
