@@ -1,4 +1,4 @@
-- [Minuet AI](#minuet-ai)
+- [Minuet](#minuet)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -20,21 +20,21 @@
   - [OpenAI-compatible](#openai-compatible)
   - [OpenAI-FIM-Compatible](#openai-fim-compatible)
 
-# Minuet AI
+# Minuet
 
-Minuet AI: Dance with Intelligence in Your Code 💃.
+Minuet: Dance with LLM in Your Code 💃.
 
-`Minuet-ai` brings the grace and harmony of a minuet to your coding process.
+`Minuet` brings the grace and harmony of a minuet to your coding process.
 Just as dancers move during a minuet.
 
 # Features
 
-- AI-powered code completion with dual modes:
+- LLM-powered code completion with dual modes:
   - Specialized prompts and various enhancements for chat-based LLMs on code
     completion tasks.
   - Fill-in-the-middle (FIM) completion for compatible models (DeepSeek,
     Codestral, and some Ollama models).
-- Support for multiple AI providers (OpenAI, Claude, Gemini, Codestral, Ollama,
+- Support for multiple LLM providers (OpenAI, Claude, Gemini, Codestral, Ollama,
   Llama.cpp and OpenAI-compatible providers)
 - Customizable configuration options
 - Streaming support to enable completion delivery even with slower LLMs
@@ -52,7 +52,7 @@ Just as dancers move during a minuet.
 - emacs 29+ compiled with native JSON support (verify with `json-available-p`).
 - plz 0.9+
 - dash
-- An API key for at least one of the supported AI providers
+- An API key for at least one of the supported LLM providers
 
 # Installation
 
@@ -220,7 +220,7 @@ computing power, please refer to [recipes.md](./recipes.md).
 
 # API Keys
 
-Minuet AI requires API keys to function. Set the following environment
+Minuet requires API keys to function. Set the following environment
 variables:
 
 - `OPENAI_API_KEY` for OpenAI

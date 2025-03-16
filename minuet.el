@@ -26,14 +26,14 @@
 ;; Floor, Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
-;; AI-powered code completion with dual modes:
+;; LLM-powered code completion with dual modes:
 ;;
 ;; - Specialized prompts and various enhancements for chat-based LLMs
 ;;   on code completion tasks.
 ;; - Fill-in-the-middle (FIM) completion for compatible models
 ;;   (DeepSeek, Codestral, and some Ollama models).
 ;;
-;; Minuet supports multiple AI providers (OpenAI, Claude, Gemini,
+;; Minuet supports multiple LLM providers (OpenAI, Claude, Gemini,
 ;; Codestral, Ollama, Llama.cpp, and OpenAI-compatible providers)
 ;;
 ;; You can use it with overlay-based ghost text via
