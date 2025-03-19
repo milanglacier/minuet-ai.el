@@ -2,6 +2,10 @@
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Quick Start: LLM Provider Examples](#quick-start-llm-provider-examples)
+  - [Ollama Qwen-2.5-coder:3b](#ollama-qwen-25-coder3b)
+  - [OpenRouter Llama-3.3-70b-instruct](#openrouter-llama-33-70b-instruct)
+  - [Llama.cpp Qwen-2.5-coder:1.5b](#llamacpp-qwen-25-coder15b)
 - [API Keys](#api-keys)
 - [Selecting a Provider or Model](#selecting-a-provider-or-model)
 - [Prompt](#prompt)
@@ -12,20 +16,25 @@
   - [minuet-request-timeout](#minuet-request-timeout)
   - [minuet-add-single-line-entry](#minuet-add-single-line-entry)
   - [minuet-n-completions](#minuet-n-completions)
+  - [minuet-auto-suggestion-debounce-delay](#minuet-auto-suggestion-debounce-delay)
+  - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
 - [Provider Options](#provider-options)
   - [OpenAI](#openai)
   - [Claude](#claude)
   - [Codestral](#codestral)
   - [Gemini](#gemini)
+    - [Experimental Configuration](#experimental-configuration)
   - [OpenAI-compatible](#openai-compatible)
   - [OpenAI-FIM-Compatible](#openai-fim-compatible)
+- [Troubleshooting](#troubleshooting)
+- [Acknowledgement](#acknowledgement)
 
 # Minuet
 
 Minuet: Dance with LLM in Your Code 💃.
 
-`Minuet` brings the grace and harmony of a minuet to your coding process.
-Just as dancers move during a minuet.
+`Minuet` brings the grace and harmony of a minuet to your coding process. Just
+as dancers move during a minuet.
 
 # Features
 
@@ -108,9 +117,9 @@ managers.
 
 ```
 
-**LLM Provider Examples**:
+# Quick Start: LLM Provider Examples
 
-**Ollama (`qwen-2.5-coder:3b`)**:
+## Ollama Qwen-2.5-coder:3b
 
 <details>
 
@@ -136,7 +145,7 @@ managers.
 
 </details>
 
-**Openrouter (`llama-3.3-70b`)**:
+## OpenRouter Llama-3.3-70b-instruct
 
 <details>
 
@@ -161,7 +170,7 @@ managers.
 
 </details>
 
-**Llama.cpp (`qwen-2.5-coder:1.5b`)**:
+## Llama.cpp Qwen-2.5-coder:1.5b
 
 <details>
 
@@ -220,8 +229,7 @@ computing power, please refer to [recipes.md](./recipes.md).
 
 # API Keys
 
-Minuet requires API keys to function. Set the following environment
-variables:
+Minuet requires API keys to function. Set the following environment variables:
 
 - `OPENAI_API_KEY` for OpenAI
 - `GEMINI_API_KEY` for Gemini
@@ -502,6 +510,8 @@ settings following the example:
                                :threshold "BLOCK_NONE")])
 ```
 
+</details>
+
 ### Experimental Configuration
 
 Gemini appears to perform better with an alternative input structure, unlike
@@ -509,8 +519,6 @@ other chat-based LLMs. This observation is currently experimental and requires
 further validation. For details on the experimental prompt setup currently in
 use by the maintainer, please refer to the
 [prompt documentation](./prompt.md#an-experimental-configuration-setup-for-gemini).
-
-</details>
 
 ## OpenAI-compatible
 
@@ -556,8 +564,8 @@ request timeout from outputing too many tokens.
 ## OpenAI-FIM-Compatible
 
 Use any provider compatible with OpenAI's completion API. This request uses the
-text completion API, not chat completion, so system prompts and few-shot
-examples are not applicable.
+text `/completions` endpoint, **not** `/chat/completions` endpoint, so system
+prompts and few-shot examples are not applicable.
 
 For example, you can set the `end_point` to
 `http://localhost:11434/v1/completions` to use `ollama`, or set it to
