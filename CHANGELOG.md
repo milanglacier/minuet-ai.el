@@ -1,3 +1,16 @@
+# Version 0.5.0 (2025-03-28)
+
+## Breaking Changes
+
+- Modified the Gemini provider's default prompt strategy to use the new
+  **Prefix First** structure.
+- Other providers will continue to use their previous default prompt
+  configurations.
+
+## Features
+
+- Add a new "Prefix-First" prompt structure for chat LLMs.
+
 # Version 0.4.4 (2025-03-10)
 
 ## Features
