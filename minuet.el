@@ -173,14 +173,14 @@ enclosed in markers:
 - `<cursorPosition>`: Current cursor location
 - `<contextBeforeCursor>`: Code context before the cursor
 "
-  "The default prefix style prompt for minuet completion.")
+  "The default prefix-first style prompt for minuet completion.")
 
 (defvar minuet-default-prompt
   (concat minuet-default-prompt-prefix-first
           "
 Note that the user's code will be prompted in reverse order: first the code
 after the cursor, then the code before the cursor.
-") "The default prefix-first style prompt for minuet completion.")
+") "The default prompt for minuet completion.")
 
 (defvar minuet-default-guidelines
   "Guidelines:
