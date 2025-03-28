@@ -23,7 +23,6 @@
   - [Claude](#claude)
   - [Codestral](#codestral)
   - [Gemini](#gemini)
-    - [Experimental Configuration](#experimental-configuration)
   - [OpenAI-compatible](#openai-compatible)
   - [OpenAI-FIM-Compatible](#openai-fim-compatible)
 - [Troubleshooting](#troubleshooting)
@@ -476,12 +475,12 @@ The following config is the default.
       :api-key "GEMINI_API_KEY"
       :system
       (:template minuet-default-system-template
-       :prompt minuet-default-prompt
+       :prompt minuet-default-prompt-prefix-first
        :guidelines minuet-default-guidelines
        :n-completions-template minuet-default-n-completion-template)
-      :fewshots minuet-default-fewshots
+      :fewshots minuet-default-fewshots-prefix-first
       :chat-input
-      (:template minuet-default-chat-input-template
+      (:template minuet-default-chat-input-template-prefix-first
        :language-and-tab minuet--default-chat-input-language-and-tab-function
        :context-before-cursor minuet--default-chat-input-before-cursor-function
        :context-after-cursor minuet--default-chat-input-after-cursor-function)
@@ -511,14 +510,6 @@ settings following the example:
 ```
 
 </details>
-
-### Experimental Configuration
-
-Gemini appears to perform better with an alternative input structure, unlike
-other chat-based LLMs. This observation is currently experimental and requires
-further validation. For details on the experimental prompt setup currently in
-use by the maintainer, please refer to the
-[prompt documentation](./prompt.md#an-experimental-configuration-setup-for-gemini).
 
 ## OpenAI-compatible
 
