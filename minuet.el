@@ -164,7 +164,7 @@ guarantee the exact number of completion items specified, as this
 parameter serves only as a prompt guideline.  The default is `3`."
   :type 'integer)
 
-(defvar minuet-default-prompt
+(defvar minuet-default-prompt-prefix-first
   "You are the backend of an AI-powered code completion engine. Your task is to
 provide code suggestions based on the user's input. The user's code will be
 enclosed in markers:
@@ -172,11 +172,15 @@ enclosed in markers:
 - `<contextAfterCursor>`: Code context after the cursor
 - `<cursorPosition>`: Current cursor location
 - `<contextBeforeCursor>`: Code context before the cursor
+"
+  "The default prefix style prompt for minuet completion.")
 
+(defvar minuet-default-prompt
+  (concat minuet-default-prompt-prefix-first
+          "
 Note that the user's code will be prompted in reverse order: first the code
 after the cursor, then the code before the cursor.
-"
-  "The default prompt for minuet completion.")
+") "The default prefix-first style prompt for minuet completion.")
 
 (defvar minuet-default-guidelines
   "Guidelines:
@@ -207,6 +211,14 @@ after the cursor, then the code before the cursor.
 {{{:context-before-cursor}}}<cursorPosition>"
   "The default template for minuet chat input.")
 
+(defvar minuet-default-chat-input-template-prefix-first
+  "{{{:language-and-tab}}}
+<contextBeforeCursor>
+{{{:context-before-cursor}}}<cursorPosition>
+<contextAfterCursor>
+{{{:context-after-cursor}}}"
+  "The default prefix-first style template for minuet chat input.")
+
 (defvar minuet-default-fewshots
   `((:role "user"
      :content "# language: python
@@ -233,6 +245,17 @@ def fibonacci(n):
     return a
 <endCompletion>
 ")))
+
+(defvar minuet-default-fewshots-prefix-first
+  `((:role "user"
+     :content "# language: python
+<contextBeforeCursor>
+def fibonacci(n):
+    <cursorPosition>
+<contextAfterCursor>
+
+fib(5)")
+    ,(cadr minuet-default-fewshots)))
 
 (defvar minuet-claude-options
   `(:model "claude-3-5-haiku-20241022"
@@ -311,12 +334,12 @@ def fibonacci(n):
     :api-key "GEMINI_API_KEY"
     :system
     (:template minuet-default-system-template
-     :prompt minuet-default-prompt
+     :prompt minuet-default-prompt-prefix-first
      :guidelines minuet-default-guidelines
      :n-completions-template minuet-default-n-completion-template)
-    :fewshots minuet-default-fewshots
+    :fewshots minuet-default-fewshots-prefix-first
     :chat-input
-    (:template minuet-default-chat-input-template
+    (:template minuet-default-chat-input-template-prefix-first
      :language-and-tab minuet--default-chat-input-language-and-tab-function
      :context-before-cursor minuet--default-chat-input-before-cursor-function
      :context-after-cursor minuet--default-chat-input-after-cursor-function)

@@ -7,7 +7,7 @@
   - [Default Few Shots Examples](#default-few-shots-examples)
   - [Default Chat Input Example](#default-chat-input-example)
   - [Customization](#customization)
-  - [An Experimental Configuration Setup for Gemini](#an-experimental-configuration-setup-for-gemini)
+  - [A Practical Example](#a-practical-example)
 
 # FIM LLM Prompt Structure
 
@@ -36,11 +36,40 @@ incorporate the necessary special tokens within the prompt function.
 
 # Chat LLM Prompt Structure
 
+We utilize two distinct strategies when constructing prompts:
+
+1. **Prefix First Style**: This involves including the code preceding the cursor
+   initially, followed by the code succeeding the cursor. This approach is used
+   only for the **Gemini** provider.
+
+2. **Suffix First Style**: This method involves including the code following the
+   cursor initially, and then the code preceding the cursor. It is employed for
+   **other** providers such as OpenAI, OpenAI-Compatible, and Claude.
+
+The counterpart variables are:
+
+1. `minuet-default-prompt` and `minuet-default-prompt-prefix-first`.
+2. `minuet-default-fewshots` and `minuet-default-fewshots-prefix-first`.
+3. `minuet-default-chat-input-template` and
+   `minuet-default-chat-input-template-prefix-first`.
+
 ## Default Template
 
 `{{{:prompt}}}\n{{{:guidelines}}}\n{{{:n_completion_template}}}`
 
 ## Default Prompt
+
+**Prefix First Style**:
+
+You are the backend of an AI-powered code completion engine. Your task is to
+provide code suggestions based on the user's input. The user's code will be
+enclosed in markers:
+
+- `<contextAfterCursor>`: Code context after the cursor
+- `<cursorPosition>`: Current cursor location
+- `<contextBeforeCursor>`: Code context before the cursor
+
+**Suffix First Style**:
 
 You are the backend of an AI-powered code completion engine. Your task is to
 provide code suggestions based on the user's input. The user's code will be
@@ -77,16 +106,19 @@ Guidelines:
 ## Default Few Shots Examples
 
 ```lisp
-`((:role "user"
-       :content "# language: python
+
+;; suffix-first style
+(defvar minuet-default-fewshots
+  `((:role "user"
+     :content "# language: python
 <contextAfterCursor>
 
 fib(5)
 <contextBeforeCursor>
 def fibonacci(n):
     <cursorPosition>")
-      (:role "assistant"
-       :content "    '''
+    (:role "assistant"
+     :content "    '''
     Recursive Fibonacci implementation
     '''
     if n < 2:
@@ -101,7 +133,18 @@ def fibonacci(n):
         a, b = b, a + b
     return a
 <endCompletion>
-"))
+")))
+
+(defvar minuet-default-fewshots-prefix-first
+  `((:role "user"
+     :content "# language: python
+<contextBeforeCursor>
+def fibonacci(n):
+    <cursorPosition>
+<contextAfterCursor>
+
+fib(5)")
+    ,(cadr minuet-default-fewshots)))
 ```
 
 ## Default Chat Input Example
@@ -111,12 +154,24 @@ The chat input represents the final prompt delivered to the LLM for completion.
 The chat input template follows a structure similar to the system prompt and can
 be customized using the following format:
 
+**Suffix First Style**:
+
 ```
 {{{:language-and-tab}}}
 <contextAfterCursor>
-{{{:context-after-cursor}}}
+{{{:context_after_cursor}}}
 <contextBeforeCursor>
-{{{:context-before-cursor}}}<cursorPosition>
+{{{:context_before_cursor}}}<cursorPosition>
+```
+
+**Prefix First Style**:
+
+```
+{{{:language-and-tab}}}
+<contextBeforeCursor>
+{{{:context_before_cursor}}}<cursorPosition>
+<contextAfterCursor>
+{{{:context_after_cursor}}}
 ```
 
 Components:
@@ -203,18 +258,13 @@ function fibonacci(n) {
 (plist-put minuet-openai-options :fewshots #'my-minuet-few-shots)
 ```
 
-## An Experimental Configuration Setup for Gemini
+## A Practical Example
 
-Some observations suggest that Gemini might perform better with a
-`Prefix-Suffix` structured input format, specifically
-`Before-Cursor -> Cursor-Pos -> After-Cursor`.
+Here, we present a practical example for configuring the prompt for Gemini,
+aiming to reuse existing components of the default prompt wherever possible.
 
-This contrasts with other chat-based LLMs, which may yield better results with
-the inverse structure: `After-Cursor -> Before-Cursor -> Cursor-Pos`.
-
-This finding remains experimental and requires further validation.
-
-Below is the current configuration used by the maintainer for Gemini:
+Please note that you should not copy-paste this into your configuration, as it
+represents the **default setting** applied to Gemini.
 
 ```lisp
 (use-package minuet
