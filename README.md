@@ -4,7 +4,7 @@
 - [Installation](#installation)
 - [Quick Start: LLM Provider Examples](#quick-start-llm-provider-examples)
   - [Ollama Qwen-2.5-coder:3b](#ollama-qwen-25-coder3b)
-  - [OpenRouter Llama-3.3-70b-instruct](#openrouter-llama-33-70b-instruct)
+  - [OpenRouter Qwen2.5-32B-Instruct](#openrouter-qwen25-32b-instruct)
   - [Llama.cpp Qwen-2.5-coder:1.5b](#llamacpp-qwen-25-coder15b)
 - [API Keys](#api-keys)
 - [Selecting a Provider or Model](#selecting-a-provider-or-model)
@@ -144,7 +144,7 @@ managers.
 
 </details>
 
-## OpenRouter Llama-3.3-70b-instruct
+## OpenRouter Qwen2.5-32B-Instruct
 
 <details>
 
@@ -158,7 +158,7 @@ managers.
 
     (plist-put minuet-openai-compatible-options :end-point "https://openrouter.ai/api/v1/chat/completions")
     (plist-put minuet-openai-compatible-options :api-key "OPENROUTER_API_KEY")
-    (plist-put minuet-openai-compatible-options :model "meta-llama/llama-3.3-70b-instruct")
+    (plist-put minuet-openai-compatible-options :model "qwen/qwen2.5-32b-instruct")
 
 
     ;; Prioritize throughput for faster completion
