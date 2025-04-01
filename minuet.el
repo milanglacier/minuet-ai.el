@@ -302,9 +302,9 @@ fib(5)")
   "Config options for Minuet Codestral provider.")
 
 (defvar minuet-openai-compatible-options
-  `(:end-point "https://api.groq.com/openai/v1/chat/completions"
-    :api-key "GROQ_API_KEY"
-    :model "llama-3.3-70b-versatile"
+  `(:end-point "https://openrouter.ai/api/v1/chat/completions"
+    :api-key "OPENROUTER_API_KEY"
+    :model "qwen/qwen2.5-32b-instruct"
     :system
     (:template minuet-default-system-template
      :prompt minuet-default-prompt
