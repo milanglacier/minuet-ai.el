@@ -628,8 +628,12 @@ To diagnose issues, examine the buffer content from `*minuet*`.
 
 # Contributions
 
-As this package is part of GNU ELPA, significant contributions require a
+Since this package is part of GNU ELPA, substantial contributions require a
 copyright assignment to the Free Software Foundation (FSF).
+
+However, minor contributions—such as small bug fixes or documentation
+improvements—are welcome even without copyright assignment. If you're unsure
+where to begin, feel free to open an issue for guidance.
 
 # Acknowledgement
 
