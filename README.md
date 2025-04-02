@@ -1,4 +1,4 @@
-- [Minuet](#minuet)- [Minuet](#minuet)
+- [Minuet](#minuet)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -31,11 +31,11 @@
 
 # Minuet
 
-[![GNU ELPA badge][elpa-badge]][elpa-link]
+[![GNU ELPA badge][gnu-elpa-badge]][gnu-elpa-link]
 [![MELPA badge][melpa-badge]][melpa-link]
 
 [gnu-elpa-link]: https://elpa.gnu.org/packages/minuet.html
-[gnu-elpa-link]: https://elpa.gnu.org/packages/minuet.svg
+[gnu-elpa-badge]: https://elpa.gnu.org/packages/minuet.svg
 [melpa-link]: https://melpa.org/#/minuet
 [melpa-badge]: https://melpa.org/packages/minuet-badge.svg
 
