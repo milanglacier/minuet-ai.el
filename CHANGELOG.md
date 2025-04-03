@@ -4,7 +4,7 @@ Minuet is now available on GNU ELPA.
 
 ## Breaking Changes
 
-- The default `openai_compatible` service is now OpenRouter.
+- The default service for `openai_compatible` provider is now OpenRouter.
 
 ## Documentation
 
