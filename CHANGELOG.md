@@ -1,3 +1,11 @@
+# Version 0.5.2 (2025-04-03)
+
+This maintenance release focuses on reducing the ELPA tarball size.
+
+## Chores
+
+- Added `.elpaignore` file to exclude unnecessary files from tarball.
+
 # Version 0.5.1 (2025-04-03)
 
 Minuet is now available on GNU ELPA.
