@@ -1,15 +1,15 @@
 ;;; minuet.el --- Code completion using LLM -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2025 Free Software Foundation, Inc.
+
 ;; Author: Milan Glacier <dev@milanglacier.com>
 ;; Maintainer: Milan Glacier <dev@milanglacier.com>
 ;; Version: 0.5.1
 ;; URL: https://github.com/milanglacier/minuet-ai.el
 ;; Package-Requires: ((emacs "29") (plz "0.9") (dash "2.19.1"))
 
-;;; This file is NOT part of GNU Emacs
+;; This file is part of GNU Emacs
 
-;;; License
-;;
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
 ;; the Free Software Foundation; either version 3, or (at your option)
@@ -26,6 +26,7 @@
 ;; Floor, Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
+
 ;; LLM-powered code completion with dual modes:
 ;;
 ;; - Specialized prompts and various enhancements for chat-based LLMs
