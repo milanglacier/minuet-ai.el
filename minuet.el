@@ -2,7 +2,7 @@
 
 ;; Author: Milan Glacier <dev@milanglacier.com>
 ;; Maintainer: Milan Glacier <dev@milanglacier.com>
-;; Version: 0.4.4
+;; Version: 0.5.1
 ;; URL: https://github.com/milanglacier/minuet-ai.el
 ;; Package-Requires: ((emacs "29") (plz "0.9") (dash "2.19.1"))
 

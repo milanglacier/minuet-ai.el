@@ -1,9 +1,22 @@
+# Version 0.5.1 (2025-04-03)
+
+Minuet is now available on GNU ELPA.
+
+## Breaking Changes
+
+- The default `openai_compatible` service is now OpenRouter.
+
+## Documentation
+
+- Updated to note the policy of GNU ELPA. The contribution section has also been
+  revised.
+
 # Version 0.5.0 (2025-03-28)
 
 ## Breaking Changes
 
-- Modified the Gemini provider's default prompt strategy to use the new
-  **Prefix First** structure.
+- Modified the Gemini provider's default prompt strategy to use the new **Prefix
+  First** structure.
 - Other providers will continue to use their previous default prompt
   configurations.
 
