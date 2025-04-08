@@ -104,6 +104,7 @@ backend with the DeepInfra FIM API and Qwen-2.5-Coder-32B-Instruct model.
   :config
   (setq minuet-provider 'openai-fim-compatible)
 
+  (plist-put minuet-openai-fim-compatible-options :name "DeepInfra")
   (plist-put minuet-openai-fim-compatible-options :end-point "https://api.deepinfra.com/v1/inference/")
   (plist-put minuet-openai-fim-compatible-options :api-key "DEEPINFRA_API_KEY")
   (plist-put minuet-openai-fim-compatible-options :model "Qwen/Qwen2.5-Coder-32B-Instruct")
