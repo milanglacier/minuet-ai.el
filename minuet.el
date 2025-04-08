@@ -299,6 +299,10 @@ fib(5)")
     :api-key "CODESTRAL_API_KEY"
     :template (:prompt minuet--default-fim-prompt-function
                :suffix minuet--default-fim-suffix-function)
+    ;; a list of functions to transform the end-point, headers, and body
+    :transform ()
+    ;; function to extract LLM-generated text from JSON output
+    :get-text-fn minuet--openai-get-text-fn
     :optional nil)
   "Config options for Minuet Codestral provider.")
 
@@ -327,6 +331,10 @@ fib(5)")
     :name "Deepseek"
     :template (:prompt minuet--default-fim-prompt-function
                :suffix minuet--default-fim-suffix-function)
+    ;; a list of functions to transform the end-point, headers, and body
+    :transform ()
+    ;; function to extract LLM-generated text from JSON output
+    :get-text-fn minuet--openai-fim-get-text-fn
     :optional nil)
   "Config options for Minuet OpenAI FIM compatible provider.")
 
@@ -856,10 +864,12 @@ OPTIONS are the provider options.  GET-TEXT-FN are the function to get
 the completion items from json.  CONTEXT is to be used to build the
 prompt.  CALLBACK is the function to be called when completion items
 arrive."
-  (let ((total-try (or minuet-n-completions 1))
-        (name (plist-get options :name))
-        (body (json-serialize
-               `(,@(plist-get options :optional)
+  (let* ((total-try (or minuet-n-completions 1))
+         ;; Initialize input components
+         (name (plist-get options :name))
+         (end-point (plist-get options :end-point))
+         (transform-functions (plist-get options :transform))
+         (body `(,@(plist-get options :optional)
                  :stream t
                  :model ,(plist-get options :model)
                  :prompt ,(funcall (--> options
@@ -869,17 +879,35 @@ arrive."
                  ,@(when-let* ((suffix-fn (--> options
                                                (plist-get it :template)
                                                (plist-get it :suffix))))
-                     (list :suffix (funcall suffix-fn context))))))
-        completion-items)
+                     (list :suffix (funcall suffix-fn context)))))
+         (headers `(("Content-Type" . "application/json")
+                    ("Accept" . "application/json")
+                    ("Authorization" .
+                     ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key))))))
+         ;; Apply transformations
+         (transformed `(:end-point ,end-point
+                        :headers ,headers
+                        :body ,body))
+         (transformed (if transform-functions
+                          (progn
+                            (dolist (fn transform-functions)
+                              (setq transformed (or (funcall fn transformed) transformed)))
+                            transformed)
+                        transformed))
+         ;; Extract transformed components
+         (end-point (plist-get transformed :end-point))
+         (headers (plist-get transformed :headers))
+         (body (plist-get transformed :body))
+         (body-json (json-serialize body))
+         ;; placeholder for completion items
+         completion-items)
     (dotimes (_ total-try)
       (minuet--with-temp-response
         (push
-         (plz 'post (plist-get options :end-point)
-           :headers `(("Content-Type" . "application/json")
-                      ("Accept" . "application/json")
-                      ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key)))))
+         (plz 'post end-point
+           :headers headers
            :timeout minuet-request-timeout
-           :body body
+           :body body-json
            :as 'string
            :filter (minuet--make-process-stream-filter --response--)
            :then
@@ -914,7 +942,7 @@ arrive."
 CONTEXT and CALLBACK will be passed to the base function."
   (minuet--openai-fim-complete-base
    (plist-put (copy-tree minuet-codestral-options) :name "Codestral")
-   #'minuet--openai-get-text-fn
+   (plist-get minuet-codestral-options :get-text-fn)
    context
    callback))
 
@@ -923,7 +951,7 @@ CONTEXT and CALLBACK will be passed to the base function."
 CONTEXT and CALLBACK will be passed to the base function."
   (minuet--openai-fim-complete-base
    (copy-tree minuet-openai-fim-compatible-options)
-   #'minuet--openai-fim-get-text-fn
+   (plist-get minuet-openai-fim-compatible-options :get-text-fn)
    context
    callback))
 
