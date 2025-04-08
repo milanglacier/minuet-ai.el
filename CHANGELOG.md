@@ -5,7 +5,7 @@
 - Added `transform` option for OpenAI-FIM-compatible providers.
 
   This feature enables support for non-OpenAI-FIM-compatible APIs with
-  OpenAI-FIM-compatible, such as the DeepInfra FIM API. Example
+  OpenAI-FIM-compatible provider, such as the DeepInfra FIM API. Example
   configurations are available in [recipes.md](.recipes.md).
 
 # Version 0.5.2 (2025-04-03)
