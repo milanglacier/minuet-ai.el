@@ -110,7 +110,7 @@ backend with the DeepInfra FIM API and Qwen-2.5-Coder-32B-Instruct model.
   (plist-put minuet-openai-fim-compatible-options :transform '(minuet-deepinfra-fim-transform))
 
   (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 56)
-  (minuet-set-optional-options minuet-openai-fim-compatible-options :stop ["\n\n"])
+  (minuet-set-optional-options minuet-openai-fim-compatible-options :stop ["\n\n" "<|endoftext|>"])
 
   ;; DeepInfra FIM does not support the `suffix` option in FIM
   ;; completion.  Therefore, we must disable it and manually
