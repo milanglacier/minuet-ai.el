@@ -1,3 +1,13 @@
+# Version 0.5.3 (2025-04-08)
+
+## Features
+
+- Added `transform` option for OpenAI-FIM-compatible providers.
+
+  This feature enables support for non-OpenAI-FIM-compatible APIs with
+  OpenAI-FIM-compatible, such as the DeepInfra FIM API. Example
+  configurations are available in [recipes.md](.recipes.md).
+
 # Version 0.5.2 (2025-04-03)
 
 This maintenance release focuses on reducing the ELPA tarball size.
