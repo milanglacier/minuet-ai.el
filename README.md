@@ -25,6 +25,7 @@
   - [Gemini](#gemini)
   - [OpenAI-compatible](#openai-compatible)
   - [OpenAI-FIM-Compatible](#openai-fim-compatible)
+    - [Non-OpenAI-FIM-Compatible APIs](#non-openai-fim-compatible-apis)
 - [Troubleshooting](#troubleshooting)
 - [Contributions](#contributions)
 - [Acknowledgement](#acknowledgement)
@@ -573,6 +574,10 @@ For example, you can set the `end_point` to
 
 <details>
 
+Refer to the
+[Completions Legacy](https://platform.openai.com/docs/api-reference/completions)
+section of the OpenAI documentation for details.
+
 Additionally, for Ollama users, it is essential to verify whether the model's
 template supports FIM completion. For example, qwen2.5-coder offers FIM support,
 as suggested in its
@@ -608,6 +613,12 @@ must be determined when you launch the `llama.cpp` server and cannot be changed
 thereafter.
 
 </details>
+
+### Non-OpenAI-FIM-Compatible APIs
+
+For providers like **DeepInfra FIM**
+(`https://api.deepinfra.com/v1/inference/`), refer to [recipes.md](./recipes.md)
+for advanced configuration instructions.
 
 # Troubleshooting
 
