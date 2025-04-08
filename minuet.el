@@ -888,12 +888,9 @@ arrive."
          (transformed `(:end-point ,end-point
                         :headers ,headers
                         :body ,body))
-         (transformed (if transform-functions
-                          (progn
-                            (dolist (fn transform-functions)
-                              (setq transformed (or (funcall fn transformed) transformed)))
-                            transformed)
-                        transformed))
+         (transformed (progn (dolist (fn transform-functions)
+                               (setq transformed (or (funcall fn transformed) transformed)))
+                             transformed))
          ;; Extract transformed components
          (end-point (plist-get transformed :end-point))
          (headers (plist-get transformed :headers))
