@@ -6,7 +6,7 @@
 
   This feature enables support for non-OpenAI-FIM-compatible APIs with
   OpenAI-FIM-compatible provider, such as the DeepInfra FIM API. Example
-  configurations are available in [recipes.md](.recipes.md).
+  configurations are available in [recipes.md](./recipes.md).
 
 # Version 0.5.2 (2025-04-03)
 
