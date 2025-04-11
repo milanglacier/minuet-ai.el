@@ -426,25 +426,37 @@ Also cancel any pending requests unless NO-CANCEL is t."
               (index (or index 0))
               (total (length suggestions))
               (suggestion (nth index suggestions))
-              ;; Ensure the overlay appears after the cursor If
-              ;; point is not at end-of-line, offset the overlay
-              ;; position by 1
-              (ov-point (if (eolp) (point) (1+ (point))))
-              (ov (make-overlay ov-point ov-point)))
+              ;; 'Display' is used when not at the end-of-line to
+              ;; ensure proper overlay positioning. Other methods,
+              ;; such as `after-string' or `before-string', fail to
+              ;; correctly position the cursor (which should precede
+              ;; the overlay) and the overlay itself.
+              (ov-method (if (eolp) 'after-string 'display))
+              (ov-start (point))
+              (ov-end (if (eq ov-method 'display) (1+ ov-start) ov-start))
+              ;; When using 'display', we include the character next
+              ;; to the current point into the overlay to ensure its
+              ;; visibility, as the overlay otherwise conceals it.
+              (offset-char (if (eq ov-method 'after-string)
+                               ""
+                             (buffer-substring ov-start ov-end)))
+              (ov (make-overlay ov-start ov-end)))
     (setq minuet--current-suggestions suggestions
           minuet--current-suggestion-index index
-          minuet--last-point (point))
+          minuet--last-point ov-start)
     ;; HACK: Adapted from copilot.el We add a 'cursor text property to the
     ;; first character of the suggestion to simulate the visual effect of
     ;; placing the overlay after the cursor
     (put-text-property 0 1 'cursor t suggestion)
-    (overlay-put ov 'after-string
-                 (propertize
-                  (format "%s%s"
-                          suggestion
-                          (if (= total minuet-n-completions 1) ""
-                            (format " (%d/%d)" (1+ index) total)))
-                  'face 'minuet-suggestion-face))
+    (overlay-put ov ov-method
+                 (concat
+                  (propertize
+                   (format "%s%s"
+                           suggestion
+                           (if (= total minuet-n-completions 1) ""
+                             (format " (%d/%d)" (1+ index) total)))
+                   'face 'minuet-suggestion-face)
+                  offset-char))
     (overlay-put ov 'minuet t)
     (setq minuet--current-overlay ov)
     (minuet-active-mode 1)))
