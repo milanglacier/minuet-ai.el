@@ -141,6 +141,14 @@ When non-nil and a completion item has multiple lines, create another
 completion item containing only its first line."
   :type 'boolean)
 
+(defcustom minuet-show-error-message-on-minibuffer nil
+  "Whether to show the error messages in minibuffer.
+When non-nil, if a request fails or times out without generating even
+a single token, the error message will be shown in the minibuffer.
+Note that you can always inspect `minuet-buffer-name' to view the
+complete error log."
+  :type 'boolean)
+
 (defcustom minuet-after-cursor-filter-length 15
   "Length of context after cursor used to filter completion text.
 
@@ -510,8 +518,9 @@ Also print the MESSAGE when MESSAGE-P is t."
   (with-current-buffer (get-buffer-create minuet-buffer-name)
     (goto-char (point-max))
     (insert (format "%s %s\n" message (format-time-string "%Y-%02m-%02d %02H:%02M:%02S")))
-    (when message-p
-      (message "%s" message))))
+    (when message-p (message "%s" message))
+    ;; make sure this function returns nil
+    nil))
 
 (defun minuet--add-tab-comment ()
   "Add comment string for tab use into the prompt."
@@ -674,8 +683,10 @@ The filter sequence is obtained from CONTEXT."
             (push text result))))
     (setq result (apply #'concat (nreverse result)))
     (if (equal result "")
-        (progn (minuet--log (format "Minuet returns no text for streaming: %s" response))
-               nil)
+        (progn
+          (minuet--log "Minuet: Stream decoding failed for response:"
+                       minuet-show-error-message-on-minibuffer)
+          (minuet--log (format "%s" response)))
       result)))
 
 (defmacro minuet--make-process-stream-filter (response)
@@ -691,9 +702,11 @@ The filter sequence is obtained from CONTEXT."
 
 RESPONSE will be stored in the temp variable create by
 `minuet--make-process-stream-filter' parsed by GET-TEXT-FN."
-  (when-let* ((response (nreverse response))
-              (response (apply #'concat response)))
-    (minuet--stream-decode response get-text-fn)))
+  (if-let* ((response (nreverse response))
+            (response (apply #'concat response)))
+      (minuet--stream-decode response get-text-fn)
+    (minuet--log "Minuet: Empty stream response - no data received"
+                 minuet-show-error-message-on-minibuffer)))
 
 (defun minuet--handle-chat-completion-timeout (context err response get-text-fn name callback)
   "Handle the timeout error for chat completion.
@@ -711,7 +724,8 @@ the errors."
                                        context))
                     (completion-items (minuet--remove-spaces completion-items)))
           (funcall callback completion-items)))
-    (minuet--log (format "An error occured when sending request to %s" name))
+    (minuet--log (format "An error occured when sending request to %s" name)
+                 minuet-show-error-message-on-minibuffer)
     (minuet--log err)))
 
 (defmacro minuet--with-temp-response (&rest body)
