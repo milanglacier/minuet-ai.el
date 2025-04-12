@@ -14,6 +14,7 @@
   - [minuet-context-window](#minuet-context-window)
   - [minuet-context-ratio](#minuet-context-ratio)
   - [minuet-request-timeout](#minuet-request-timeout)
+  - [minuet-show-error-message-on-minibuffer](#minuet-show-error-message-on-minibuffer)
   - [minuet-add-single-line-entry](#minuet-add-single-line-entry)
   - [minuet-n-completions](#minuet-n-completions)
   - [minuet-auto-suggestion-debounce-delay](#minuet-auto-suggestion-debounce-delay)
@@ -326,6 +327,14 @@ used. The ratio should between 0 and `1`, and default is `0.75`.
 
 Maximum timeout in seconds for sending completion requests. In case of the
 timeout, the incomplete completion items will be delivered. The default is `3`.
+
+## minuet-show-error-message-on-minibuffer
+
+Whether to show the error messages in minibuffer. The default value is
+`nil`.  When non-nil, if a request fails or times out without
+generating even a single token, the error message will be shown in the
+minibuffer.  Note that you can always inspect `minuet-buffer-name` to
+view the complete error log.
 
 ## minuet-add-single-line-entry
 
