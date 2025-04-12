@@ -672,21 +672,21 @@ The filter sequence is obtained from CONTEXT."
   (setq response (split-string response "[\r]?\n"))
   (let (result)
     (dolist (line response)
-      (if-let* ((json (ignore-errors
-                        (json-parse-string
-                         (replace-regexp-in-string "^data: " "" line)
-                         :object-type 'plist :array-type 'list)))
-                (text (ignore-errors
-                        (funcall get-text-fn json))))
-          (when (and (stringp text)
-                     (not (equal text "")))
-            (push text result))))
+      (when-let* ((json (ignore-errors
+                          (json-parse-string
+                           (replace-regexp-in-string "^data: " "" line)
+                           :object-type 'plist :array-type 'list)))
+                  (text (ignore-errors
+                          (funcall get-text-fn json))))
+        (when (and (stringp text)
+                   (not (equal text "")))
+          (push text result))))
     (setq result (apply #'concat (nreverse result)))
     (if (equal result "")
         (progn
           (minuet--log "Minuet: Stream decoding failed for response:"
                        minuet-show-error-message-on-minibuffer)
-          (minuet--log (format "%s" response)))
+          (minuet--log response))
       result)))
 
 (defmacro minuet--make-process-stream-filter (response)
