@@ -1,3 +1,11 @@
+# Version 0.5.4 (2025-04-13)
+
+## Features
+- Add option to show error message on minibuffer and improve error message
+
+## Bug Fixes
+- Fix overlay positioning when not at the end-of-line
+
 # Version 0.5.3 (2025-04-08)
 
 ## Features
