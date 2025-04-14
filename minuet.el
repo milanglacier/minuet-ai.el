@@ -285,7 +285,7 @@ fib(5)")
   "Config options for Minuet Claude provider.")
 
 (defvar minuet-openai-options
-  `(:model "gpt-4o-mini"
+  `(:model "gpt-4.1-mini"
     :api-key "OPENAI_API_KEY"
     :system
     (:template minuet-default-system-template

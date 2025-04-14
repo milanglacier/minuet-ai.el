@@ -370,8 +370,8 @@ You can customize the provider options using `plist-put`, for example:
 
 ```lisp
 (with-eval-after-load 'minuet
-    ;; change openai model to gpt-4o
-    (plist-put minuet-openai-options :model "gpt-4o")
+    ;; change openai model to gpt-4.1
+    (plist-put minuet-openai-options :model "gpt-4.1")
 
     ;; change openai-compatible provider to use fireworks
     (setq minuet-provider 'openai-compatible)
@@ -397,7 +397,7 @@ Below is the default value:
 
 ```lisp
 (defvar minuet-openai-options
-    `(:model "gpt-4o-mini"
+    `(:model "gpt-4.1-mini"
       :api-key "OPENAI_API_KEY"
       :system
       (:template minuet-default-system-template
