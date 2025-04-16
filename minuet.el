@@ -603,34 +603,42 @@ Also print the MESSAGE when MESSAGE-P is t."
 
 (defun minuet--make-chat-llm-shot (context options)
   "Build the final chat input for chat llm.
-CONTEXT is read from current buffer content.
-OPTIONS should be the provider options plist."
+The CONTEXT is read from the current buffer content.  OPTIONS should
+be specified as a plist of provider settings.  The return value will a
+list of strings.  It will then be converted into a multi-turn
+conversation with alternating `user` and `assistant` roles by
+`minuet--create-chat-messages-from-list'"
   (let* ((chat-input (copy-tree (plist-get options :chat-input)))
-         (template (minuet--eval-value (plist-get chat-input :template)))
-         (parts nil))
+         (templates (minuet--eval-value (plist-get chat-input :template)))
+         (templates (if (stringp templates) (list templates) templates))
+         (parts nil)
+         (results nil))
     ;; Remove template from options to avoid infinite recursion
     (setq chat-input (plist-put chat-input :template nil))
     ;; Use cl-loop for better control flow
-    (cl-loop with last-pos = 0
-             for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
-             until (not match)
-             for start-pos = (match-beginning 0)
-             for end-pos = (match-end 0)
-             for key = (match-string 1 template)
-             do
-             ;; Add text before placeholder
-             (when (> start-pos last-pos)
-               (push (substring template last-pos start-pos) parts))
-             ;; Get and add replacement value
-             (when-let* ((repl-fn (plist-get chat-input (intern key)))
-                         (value (funcall repl-fn context)))
-               (push value parts))
-             (setq last-pos end-pos)
-             finally
-             ;; Add remaining text after last match
-             (push (substring template last-pos) parts))
-    ;; Join parts in reverse order
-    (apply #'concat (nreverse parts))))
+    (dolist (template templates)
+      (setq parts nil)
+      (cl-loop with last-pos = 0
+               for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
+               until (not match)
+               for start-pos = (match-beginning 0)
+               for end-pos = (match-end 0)
+               for key = (match-string 1 template)
+               do
+               ;; Add text before placeholder
+               (when (> start-pos last-pos)
+                 (push (substring template last-pos start-pos) parts))
+               ;; Get and add replacement value
+               (when-let* ((repl-fn (plist-get chat-input (intern key)))
+                           (value (funcall repl-fn context)))
+                 (push value parts))
+               (setq last-pos end-pos)
+               finally
+               ;; Add remaining text after last match
+               (push (substring template last-pos) parts))
+      ;; Join parts in reverse order
+      (push (apply #'concat (nreverse parts)) results))
+    (nreverse results)))
 
 (defun minuet--make-context-filter-sequence (context len)
   "Create a filtering string based on CONTEXT with maximum length LEN."
@@ -993,6 +1001,19 @@ CONTEXT and CALLBACK will be passed to the base function."
        (plist-get it :delta)
        (plist-get it :content)))
 
+(defun minuet--create-chat-messages-from-list (str-list)
+  "Convert a list of strings into alternating user/assistant chat messages.
+STR-LIST is a list of strings.  Returns a list of plists with :role
+and :content keys."
+  (let ((result nil)
+        (roles '("user" "assistant")))
+    (cl-loop for i from 1 to (length str-list)
+             for content in str-list
+             do (push (list :role (nth (mod (1- i) 2) roles)
+                            :content content)
+                      result))
+    (nreverse result)))
+
 (defun minuet--openai-complete-base (options context callback)
   "The base function to complete code with openai API.
 OPTIONS are the provider options.  the completion items from json.
@@ -1013,10 +1034,10 @@ to be called when completion items arrive."
           :model ,(plist-get options :model)
           :messages ,(vconcat
                       `((:role "system"
-                         :content ,(minuet--make-system-prompt (plist-get options :system)))
-                        ,@(minuet--eval-value (plist-get options :fewshots))
-                        (:role "user"
-                         :content ,(minuet--make-chat-llm-shot context options))))))
+                         :content ,(minuet--make-system-prompt (plist-get options :system))))
+                      (minuet--eval-value (plist-get options :fewshots))
+                      (--> (minuet--make-chat-llm-shot context options)
+                           minuet--create-chat-messages-from-list))))
        :as 'string
        :filter (minuet--make-process-stream-filter --response--)
        :then
@@ -1076,9 +1097,9 @@ to be called when completion items arrive."
             :system ,(minuet--make-system-prompt (plist-get options :system))
             :max_tokens ,(plist-get options :max_tokens)
             :messages ,(vconcat
-                        `(,@(minuet--eval-value (plist-get options :fewshots))
-                          (:role "user"
-                           :content ,(minuet--make-chat-llm-shot context minuet-claude-options)))))))
+                        (minuet--eval-value (plist-get options :fewshots))
+                        (--> (minuet--make-chat-llm-shot context options)
+                             minuet--create-chat-messages-from-list)))))
        :as 'string
        :filter (minuet--make-process-stream-filter --response--)
        :then
@@ -1107,6 +1128,22 @@ to be called when completion items arrive."
        car
        (plist-get it :text)))
 
+(defun minuet--transform-openai-chat-to-gemini-chat (chat)
+  "Convert OpenAI-format chat to Gemini format.
+CHAT is a list of plists with :role and :content keys"
+  (let (new-chat)
+    (dolist (message chat)
+      (let ((gemini-message
+             (pcase (plist-get message :role)
+               ("user"
+                `(:role "user" :parts [(:text ,(plist-get message :content))]))
+               ("assistant"
+                `(:role "model" :parts [(:text ,(plist-get message :content))]))
+               (_ nil))))
+        (when gemini-message
+          (push gemini-message new-chat))))
+    (nreverse new-chat)))
+
 (defun minuet--gemini-complete (context callback)
   "Complete code with gemini.
 CONTEXT is to be used to build the prompt.  CALLBACK is the function
@@ -1123,19 +1160,14 @@ to be called when completion items arrive."
        (json-serialize
         (let* ((options (copy-tree minuet-gemini-options))
                (fewshots (minuet--eval-value (plist-get options :fewshots)))
-               (fewshots (mapcar
-                          (lambda (shot)
-                            `(:role
-                              ,(if (equal (plist-get shot :role) "user") "user" "model")
-                              :parts
-                              [(:text ,(plist-get shot :content))]))
-                          fewshots)))
+               (fewshots (minuet--transform-openai-chat-to-gemini-chat fewshots)))
           `(,@(plist-get options :optional)
             :system_instruction (:parts (:text ,(minuet--make-system-prompt (plist-get options :system))))
             :contents ,(vconcat
-                        `(,@fewshots
-                          (:role "user"
-                           :parts [(:text ,(minuet--make-chat-llm-shot context minuet-gemini-options))]))))))
+                        fewshots
+                        (--> (minuet--make-chat-llm-shot context options)
+                             minuet--create-chat-messages-from-list
+                             minuet--transform-openai-chat-to-gemini-chat)))))
        :as 'string
        :filter (minuet--make-process-stream-filter --response--)
        :then
