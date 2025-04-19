@@ -4,7 +4,7 @@
 - [Installation](#installation)
 - [Quick Start: LLM Provider Examples](#quick-start-llm-provider-examples)
   - [Ollama Qwen-2.5-coder:3b](#ollama-qwen-25-coder3b)
-  - [OpenRouter Qwen2.5-32B-Instruct](#openrouter-qwen25-32b-instruct)
+  - [OpenRouter Deepseek-V3-0324](#openrouter-deepseek-v3-0324)
   - [Llama.cpp Qwen-2.5-coder:1.5b](#llamacpp-qwen-25-coder15b)
 - [API Keys](#api-keys)
 - [Selecting a Provider or Model](#selecting-a-provider-or-model)
@@ -155,7 +155,7 @@ preferred package managers.
 
 </details>
 
-## OpenRouter Qwen2.5-32B-Instruct
+## OpenRouter Deepseek-V3-0324
 
 <details>
 
@@ -169,12 +169,12 @@ preferred package managers.
 
     (plist-put minuet-openai-compatible-options :end-point "https://openrouter.ai/api/v1/chat/completions")
     (plist-put minuet-openai-compatible-options :api-key "OPENROUTER_API_KEY")
-    (plist-put minuet-openai-compatible-options :model "qwen/qwen2.5-32b-instruct")
+    (plist-put minuet-openai-compatible-options :model "deepseek/deepseek-chat-v3-0324")
 
 
     ;; Prioritize throughput for faster completion
     (minuet-set-optional-options minuet-openai-compatible-options :provider '(:sort "throughput"))
-    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 128)
+    (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 56)
     (minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9))
 ```
 
@@ -330,11 +330,10 @@ timeout, the incomplete completion items will be delivered. The default is `3`.
 
 ## minuet-show-error-message-on-minibuffer
 
-Whether to show the error messages in minibuffer. The default value is
-`nil`.  When non-nil, if a request fails or times out without
-generating even a single token, the error message will be shown in the
-minibuffer.  Note that you can always inspect `minuet-buffer-name` to
-view the complete error log.
+Whether to show the error messages in minibuffer. The default value is `nil`.
+When non-nil, if a request fails or times out without generating even a single
+token, the error message will be shown in the minibuffer. Note that you can
+always inspect `minuet-buffer-name` to view the complete error log.
 
 ## minuet-add-single-line-entry
 
