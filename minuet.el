@@ -317,7 +317,7 @@ fib(5)")
 (defvar minuet-openai-compatible-options
   `(:end-point "https://openrouter.ai/api/v1/chat/completions"
     :api-key "OPENROUTER_API_KEY"
-    :model"deepseek/deepseek-chat-v3-0324")
+    :model "deepseek/deepseek-chat-v3-0324"
     :system
     (:template minuet-default-system-template
      :prompt minuet-default-prompt
