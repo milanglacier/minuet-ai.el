@@ -145,7 +145,9 @@ preferred package managers.
     ;; you should adjust the context window to a larger value.
     (setq minuet-context-window 512)
     (plist-put minuet-openai-fim-compatible-options :end-point "http://localhost:11434/v1/completions")
-    ;; an arbitrary non-null environment variable as placeholder
+    ;; an arbitrary non-null environment variable as placeholder.
+    ;; For Windows users, TERM may not be present in environment variables.
+    ;; Consider using APPDATA instead.
     (plist-put minuet-openai-fim-compatible-options :name "Ollama")
     (plist-put minuet-openai-fim-compatible-options :api-key "TERM")
     (plist-put minuet-openai-fim-compatible-options :model "qwen2.5-coder:3b")
@@ -209,6 +211,8 @@ llama-server \
     (setq minuet-context-window 512)
     (plist-put minuet-openai-fim-compatible-options :end-point "http://localhost:8012/v1/completions")
     ;; an arbitrary non-null environment variable as placeholder
+    ;; For Windows users, TERM may not be present in environment variables.
+    ;; Consider using APPDATA instead.
     (plist-put minuet-openai-fim-compatible-options :name "Llama.cpp")
     (plist-put minuet-openai-fim-compatible-options :api-key "TERM")
     ;; The model is set by the llama-cpp server and cannot be altered
