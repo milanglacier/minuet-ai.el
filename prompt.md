@@ -18,15 +18,26 @@ The prompt sent to the FIM LLM follows this structure:
              :suffix minuet--default-fim-suffix-function))
 ```
 
-The template contains two main functions:
+This template utilizes two default functions that generate the following:
 
-- `:prompt`: return language and the indentation style, followed by the
-  `context_before_cursor` verbatim.
-- `:suffix`: return `context_after_cursor` verbatim.
+- `:prompt`: Returns the programming language, indentation style, and the
+  verbatim content of the context before the cursor.
+- `:suffix`: Returns the verbatim content of the context after cursor.
 
-Both functions can be customized to supply additional context to the LLM. The
-`suffix` function can be disabled by setting `:suffix` to `nil` via `plist-put`,
-resulting in a request containing only the prompt.
+Both `:prompt` and `:suffix` are implemented as functions, each accepting a
+plist `ctx` with these attributes and returning a string:
+
+- `:before-cursor`: The text before the cursor.
+- `:after-cursor`: The text after the cursor.
+- `:language-and-tab`: The programming language and indentation style.
+- `is_incomplete_before`: A boolean indicating whether the content before the
+  cursor was truncated.
+- `is_incomplete_after`: A boolean indicating whether the content after the
+  cursor was truncated.
+
+These functions are customizable to provide additional context to the LLM. The
+`:suffix` function can be disabled by setting its value to `nil` using
+`plist-put`, resulting in a request containing only the `:prompt` content.
 
 Note: for Ollama users: Do not include special tokens (e.g., `<|fim_begin|>`)
 within the prompt or suffix functions, as these will be automatically populated
@@ -192,13 +203,13 @@ Implementation requires each component to be defined by a function that accepts
 a single parameter `context` and returns a string. This context parameter is a
 plist containing the following values:
 
-- `:before-cursor`
-- `:after-cursor`
-- `:language-and-tab`
-- `:is-incomplete-before`: indicates whether the context before the cursor is
-  incomplete
-- `:is-incomplete-after`: indicates whether the context after the cursor is
-  incomplete
+- `:before-cursor`: The text before the cursor.
+- `:after-cursor`: The text after the cursor.
+- `:language-and-tab`: The programming language and indentation style.
+- `is_incomplete_before`: A boolean indicating whether the content before the
+  cursor was truncated.
+- `is_incomplete_after`: A boolean indicating whether the content after the
+  cursor was truncated.
 
 ## Customization
 
