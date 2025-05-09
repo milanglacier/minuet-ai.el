@@ -54,7 +54,7 @@ llama-server \
     ;; Llama.cpp does not support the `suffix` option in FIM completion.
     ;; Therefore, we must disable it and manually populate the special
     ;; tokens required for FIM completion.
-    (minuet-set-optional-options minuet-openai-fim-compatible-options :suffix nil :template)
+    (minuet-set-nested-plist minuet-openai-fim-compatible-options nil :template :suffix)
     (minuet-set-optional-options
      minuet-openai-fim-compatible-options
      :prompt
@@ -116,17 +116,18 @@ backend with the DeepInfra FIM API and Qwen-2.5-Coder-32B-Instruct model.
   ;; DeepInfra FIM does not support the `suffix` option in FIM
   ;; completion.  Therefore, we must disable it and manually
   ;; populate the special tokens required for FIM completion.
-  (minuet-set-optional-options minuet-openai-fim-compatible-options :suffix nil :template)
+  (minuet-set-nested-plist minuet-openai-fim-compatible-options nil :template :suffix)
 
   ;; Custom prompt formatting for Qwen model
-  (minuet-set-optional-options minuet-openai-fim-compatible-options
-                               :prompt
-                               (defun minuet-deepinfra-fim-qwen-prompt-function (ctx)
-                                 (format "<|fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
-                                         (plist-get ctx :language-and-tab)
-                                         (plist-get ctx :before-cursor)
-                                         (plist-get ctx :after-cursor)))
-                               :template)
+  (minuet-set-nested-plist
+   minuet-openai-fim-compatible-options
+   (defun minuet-deepinfra-fim-qwen-prompt-function (ctx)
+     (format "<|fim_prefix|>%s\n%s<|fim_suffix|>%s<|fim_middle|>"
+             (plist-get ctx :language-and-tab)
+             (plist-get ctx :before-cursor)
+             (plist-get ctx :after-cursor)))
+   :template
+   :prompt)
 
   ;; Function to transform requests data according to DeepInfra's API format.
   (defun minuet-deepinfra-fim-transform (data)

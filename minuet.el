@@ -370,17 +370,37 @@ fib(5)")
        (not (or (evil-insert-state-p)
                 (evil-emacs-state-p)))))
 
-(defun minuet-set-optional-options (options key val &optional field)
-  "Set the value of KEY in the FIELD of OPTIONS to VAL.
-If FIELD is not provided, it defaults to :optional.  If VAL is nil,
+(defmacro minuet-set-nested-plist (place val &rest attributes)
+  "Set or delete a PLIST's nested ATTRIBUTES.
+PLACE is the plist to set.
+If VAL is non-nil, set the nested attribute to VAL.
+If VAL is nil, delete the final attribute from its parent plist.
+Example usage:
+\(minuet-set-nested-plist `minuet-openai-options' 256 :optional :max-tokens)
+;; delete :max-tokens field
+\(minuet-set-nested-plist `minuet-openai-options' nil :optional :max-tokens)"
+  (if (null attributes)
+      (error "mg--setf-nested-plist requires at least one attribute key"))
+  (if val
+      (let ((access-form place))
+        (dolist (attr attributes)
+          (setq access-form `(plist-get ,access-form ,attr)))
+        `(setf ,access-form ,val))
+    ;; If val is nil, delete the key from its parent plist.
+    (let* ((all-but-last-attributes (butlast attributes))
+           (last-attribute (car (last attributes)))
+           (parent-plist-accessor place))
+      (dolist (attr all-but-last-attributes)
+        (setq parent-plist-accessor `(plist-get ,parent-plist-accessor ,attr)))
+      `(setf ,parent-plist-accessor (map-delete ,parent-plist-accessor ,last-attribute)))))
+
+(defun minuet-set-optional-options (options key val &optional parent-key)
+  "Set the value of KEY in the PARENT-KEY of OPTIONS to VAL.
+If PARENT-KEY is not provided, it defaults to :optional.  If VAL is nil,
 then remove KEY from OPTIONS.  This helper function simplifies setting
 values in a two-level nested plist structure."
-  (let ((field (or field :optional)))
-    (if val
-        (setf (plist-get options field)
-              (plist-put (plist-get options field) key val))
-      (setf (plist-get options field)
-            (map-delete (plist-get options field) key)))))
+  (let ((parent-key (or parent-key :optional)))
+    (minuet-set-nested-plist options val parent-key key)))
 
 (defun minuet--eval-value (value)
   "Eval a VALUE for minuet.

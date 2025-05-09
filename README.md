@@ -223,7 +223,7 @@ llama-server \
     ;; Llama.cpp does not support the `suffix` option in FIM completion.
     ;; Therefore, we must disable it and manually populate the special
     ;; tokens required for FIM completion.
-    (minuet-set-optional-options minuet-openai-fim-compatible-options :suffix nil :template)
+    (minuet-set-nested-plist minuet-openai-fim-compatible-options nil :template :suffix)
     (minuet-set-optional-options
      minuet-openai-fim-compatible-options
      :prompt
