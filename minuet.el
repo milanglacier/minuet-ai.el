@@ -370,26 +370,26 @@ fib(5)")
        (not (or (evil-insert-state-p)
                 (evil-emacs-state-p)))))
 
-(defmacro minuet-set-nested-plist (place val &rest attributes)
+(defmacro minuet-set-nested-plist (plist val &rest attributes)
   "Set or delete a PLIST's nested ATTRIBUTES.
-PLACE is the plist to set.
-If VAL is non-nil, set the nested attribute to VAL.
-If VAL is nil, delete the final attribute from its parent plist.
+PLIST is the plist to set.  If VAL is non-nil, set the nested
+attribute to VAL.  If VAL is nil, delete the final attribute from its
+parent plist.
 Example usage:
 \(minuet-set-nested-plist `minuet-openai-options' 256 :optional :max-tokens)
 ;; delete :max-tokens field
 \(minuet-set-nested-plist `minuet-openai-options' nil :optional :max-tokens)"
   (if (null attributes)
-      (error "mg--setf-nested-plist requires at least one attribute key"))
+      (error "minuet-set-nested-plist requires at least one attribute key"))
   (if val
-      (let ((access-form place))
+      (let ((access-form plist))
         (dolist (attr attributes)
           (setq access-form `(plist-get ,access-form ,attr)))
         `(setf ,access-form ,val))
     ;; If val is nil, delete the key from its parent plist.
     (let* ((all-but-last-attributes (butlast attributes))
            (last-attribute (car (last attributes)))
-           (parent-plist-accessor place))
+           (parent-plist-accessor plist))
       (dolist (attr all-but-last-attributes)
         (setq parent-plist-accessor `(plist-get ,parent-plist-accessor ,attr)))
       `(setf ,parent-plist-accessor (map-delete ,parent-plist-accessor ,last-attribute)))))
