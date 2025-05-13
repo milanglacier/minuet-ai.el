@@ -95,6 +95,9 @@ auto-suggestions will not be shown."
 (defvar-local minuet--current-suggestion-index 0
   "Index of currently displayed suggestion.")
 
+(defvar-local minuet--current-suggestion-line-index 0
+  "Index of the current displayed suggestion line index.")
+
 (defvar-local minuet--current-requests nil
   "List of current active request processes for this buffer.")
 
@@ -482,7 +485,8 @@ Also cancel any pending requests unless NO-CANCEL is t."
     (setq minuet--current-overlay nil)
     (minuet-active-mode -1))
   (remove-hook 'post-command-hook #'minuet--on-cursor-moved t)
-  (setq minuet--last-point nil))
+  (setq minuet--last-point nil)
+  (setq minuet--current-suggestion-line-index 0))
 
 (defun minuet--cursor-moved-p ()
   "Check if cursor moved from last suggestion position."
@@ -549,7 +553,9 @@ Also cancel any pending requests unless NO-CANCEL is t."
            minuet--current-overlay)
       (let ((next-index (mod (1+ minuet--current-suggestion-index)
                              (length minuet--current-suggestions))))
-        (minuet--display-suggestion minuet--current-suggestions next-index))
+        (minuet--display-suggestion minuet--current-suggestions next-index)
+        (setq minuet--current-suggestion-line-index 0))
+
     (minuet-show-suggestion)))
 
 ;;;###autoload
@@ -560,7 +566,8 @@ Also cancel any pending requests unless NO-CANCEL is t."
            minuet--current-overlay)
       (let ((prev-index (mod (1- minuet--current-suggestion-index)
                              (length minuet--current-suggestions))))
-        (minuet--display-suggestion minuet--current-suggestions prev-index))
+        (minuet--display-suggestion minuet--current-suggestions prev-index)
+        (setq minuet--current-suggestion-line-index 0))
     (minuet-show-suggestion)))
 
 ;;;###autoload
@@ -884,7 +891,10 @@ cleaned up after accepting."
                             minuet--current-suggestions))
            (lines (split-string suggestion "\n"))
            (n (or n 1)) ; Default n to 1 if not provided
-           (selected-lines (seq-take lines n)))
+           (selected-lines (seq-take (seq-drop lines minuet--current-suggestion-line-index) n))
+           ;; Update minuet--current-suggestion-line-index
+           (setq minuet--current-suggestion-line-index
+                 (+ minuet--current-suggestion-line-index n)))
       ;; Only cleanup if keep-suggestion is nil (false)
       (unless keep-suggestion
         (minuet--cleanup-suggestion))
