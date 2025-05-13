@@ -871,19 +871,23 @@ used to accumulate text output from a process.  After execution,
   (minuet--cleanup-suggestion))
 
 ;;;###autoload
-(defun minuet-accept-suggestion-line (&optional n)
+(defun minuet-accept-suggestion-line (&optional n keep-suggestion)
   "Accept N lines of the current suggestion.
 When called interactively with a numeric prefix argument, accept that
-many lines.  Without a prefix argument, accept only the first line."
+many lines. Without a prefix argument, accept only the first line.
+If KEEP-SUGGESTION is non-nil, the suggestion display will not be
+cleaned up after accepting."
   (interactive "p")
   (when (and minuet--current-suggestions
              minuet--current-overlay)
     (let* ((suggestion (nth minuet--current-suggestion-index
                             minuet--current-suggestions))
            (lines (split-string suggestion "\n"))
-           (n (or n 1))
+           (n (or n 1)) ; Default n to 1 if not provided
            (selected-lines (seq-take lines n)))
-      (minuet--cleanup-suggestion)
+      ;; Only cleanup if keep-suggestion is nil (false)
+      (unless keep-suggestion
+        (minuet--cleanup-suggestion))
       (insert (string-join selected-lines "\n")))))
 
 ;;;###autoload
