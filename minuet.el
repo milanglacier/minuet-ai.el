@@ -891,6 +891,11 @@ cleaned up after accepting."
       (insert (string-join selected-lines "\n")))))
 
 ;;;###autoload
+(defun minuet-accept-suggestion-line-continue ()
+  "Accept 1 line of current suggestion, and continue to keep the suggestions open."
+  (minuet-accept-suggestion-line 1 t))
+
+;;;###autoload
 (defun minuet-complete-with-minibuffer ()
   "Complete using minibuffer interface."
   (interactive)
