@@ -426,19 +426,21 @@ symbol, return its value.  Else return itself."
         (delete-process proc)))
     (setq minuet--current-requests nil)))
 
-(defun minuet--cleanup-suggestion (&optional no-cancel)
+(defun minuet--cleanup-suggestion (&optional no-cancel keep-suggestion)
   "Remove the current suggestion overlay.
 Also cancel any pending requests unless NO-CANCEL is t."
   (unless no-cancel
-    (setq minuet--current-suggestion-line-index 0
-          minuet--continue-point nil)
     (minuet--cancel-requests))
   (when minuet--current-overlay
     (delete-overlay minuet--current-overlay)
     (setq minuet--current-overlay nil)
     (minuet-active-mode -1))
   (remove-hook 'post-command-hook #'minuet--on-cursor-moved t)
-  (setq minuet--last-point nil))
+
+  (unless keep-suggestion
+    (setq minuet--current-suggestion-line-index 0
+      minuet--continue-point nil)
+    (setq minuet--last-point nil)))
 
 (defun minuet--cursor-moved-p ()
   "Check if cursor moved from last suggestion position."
@@ -449,62 +451,62 @@ Also cancel any pending requests unless NO-CANCEL is t."
   "Minuet event on cursor moved."
   (when (minuet--cursor-moved-p)
     (if (and minuet--continue-point
-             (eq minuet--continue-point (point)))
-        ((minuet--refresh-display-suggestion))
-      ((minuet--cleanup-suggestion))
-      )
+          (eq minuet--continue-point (point)))
+      (minuet--refresh-display-suggestion)
+      (minuet--cleanup-suggestion))
     ))
 
 (defun minuet--display-suggestion-overlay
-    (suggestion index total ov-method ov-start ov-end offset-char)
+  (suggestion index total ov ov-method ov-start ov-end offset-char)
   ;; HACK: Adapted from copilot.el We add a 'cursor text property to the
   ;; first character of the suggestion to simulate the visual effect of
   ;; placing the overlay after the cursor
+  (setq minuet--last-point ov-start)
   (put-text-property 0 1 'cursor t suggestion)
   (overlay-put ov ov-method
-               (concat
-                (propertize
-                 (format "%s%s"
-                         suggestion
-                         (if (= total minuet-n-completions 1) ""
-                           (format " (%d/%d)" (1+ index) total)))
-                 'face 'minuet-suggestion-face)
-                offset-char))
+    (concat
+      (propertize
+        (format "%s%s"
+          suggestion
+          (if (= total minuet-n-completions 1) ""
+            (format " (%d/%d)" (1+ index) total)))
+        'face 'minuet-suggestion-face)
+      offset-char))
   (overlay-put ov 'minuet t)
   (setq minuet--current-overlay ov)
   (minuet-active-mode 1))
 
 (defun minuet--refresh-display-suggestion ()
   "Refresh the display of suggestions, using internal stored suggestions and statuses."
-  (minuet--cleanup-suggestion t)
+  (minuet--cleanup-suggestion t t)
   (add-hook 'post-command-hook #'minuet--on-cursor-moved nil t)
 
   (when-let* ((suggestions minuet--current-suggestions)
-              (index (or minuet--current-suggestion-index 0))
-              (total (length suggestions))
-              (suggestion (nth index suggestions))
-              ;; 'Display' is used when not at the end-of-line to
-              ;; ensure proper overlay positioning. Other methods,
-              ;; such as `after-string' or `before-string', fail to
-              ;; correctly position the cursor (which should precede
-              ;; the overlay) and the overlay itself.
-              (ov-method (if (eolp) 'after-string 'display))
-              (ov-start (point))
-              (ov-end (if (eq ov-method 'display) (1+ ov-start) ov-start))
-              ;; When using 'display', we include the character next
-              ;; to the current point into the overlay to ensure its
-              ;; visibility, as the overlay otherwise conceals it.
-              (offset-char (if (eq ov-method 'after-string)
-                               ""
-                             (buffer-substring ov-start ov-end)))
-              (ov (make-overlay ov-start ov-end)))
+               (index (or minuet--current-suggestion-index 0))
+               (total (length suggestions))
+               (suggestion (nth index suggestions))
+               ;; 'Display' is used when not at the end-of-line to
+               ;; ensure proper overlay positioning. Other methods,
+               ;; such as `after-string' or `before-string', fail to
+               ;; correctly position the cursor (which should precede
+               ;; the overlay) and the overlay itself.
+               (ov-method (if (eolp) 'after-string 'display))
+               (ov-start (point))
+               (ov-end (if (eq ov-method 'display) (1+ ov-start) ov-start))
+               ;; When using 'display', we include the character next
+               ;; to the current point into the overlay to ensure its
+               ;; visibility, as the overlay otherwise conceals it.
+               (offset-char (if (eq ov-method 'after-string)
+                              ""
+                              (buffer-substring ov-start ov-end)))
+               (ov (make-overlay ov-start ov-end)))
     ;; display the overlay with new suggestion
     (let* ((lines (split-string suggestion "\n"))
-           (start-index (or minuet--current-suggestion-line-index 0))
-           (selected-lines (seq-drop lines start-index))
-           (new-suggestion (string-join selected-lines "\n")))
+            (start-index (or minuet--current-suggestion-line-index 0))
+            (selected-lines (seq-drop lines start-index))
+            (new-suggestion (string-join selected-lines "\n")))
       (minuet--display-suggestion-overlay
-       new-suggestion index total ov-method ov-start ov-end offset-char)
+        new-suggestion index total ov ov-method ov-start ov-end offset-char)
       )
     ))
 
@@ -516,32 +518,31 @@ Also cancel any pending requests unless NO-CANCEL is t."
   (minuet--cleanup-suggestion t)
   (add-hook 'post-command-hook #'minuet--on-cursor-moved nil t)
   (when-let* ((suggestions suggestions)
-              (cursor-not-moved (not (minuet--cursor-moved-p)))
-              (index (or index 0))
-              (total (length suggestions))
-              (suggestion (nth index suggestions))
-              ;; 'Display' is used when not at the end-of-line to
-              ;; ensure proper overlay positioning. Other methods,
-              ;; such as `after-string' or `before-string', fail to
-              ;; correctly position the cursor (which should precede
-              ;; the overlay) and the overlay itself.
-              (ov-method (if (eolp) 'after-string 'display))
-              (ov-start (point))
-              (ov-end (if (eq ov-method 'display) (1+ ov-start) ov-start))
-              ;; When using 'display', we include the character next
-              ;; to the current point into the overlay to ensure its
-              ;; visibility, as the overlay otherwise conceals it.
-              (offset-char (if (eq ov-method 'after-string)
-                               ""
-                             (buffer-substring ov-start ov-end)))
-              (ov (make-overlay ov-start ov-end)))
+               (cursor-not-moved (not (minuet--cursor-moved-p)))
+               (index (or index 0))
+               (total (length suggestions))
+               (suggestion (nth index suggestions))
+               ;; 'Display' is used when not at the end-of-line to
+               ;; ensure proper overlay positioning. Other methods,
+               ;; such as `after-string' or `before-string', fail to
+               ;; correctly position the cursor (which should precede
+               ;; the overlay) and the overlay itself.
+               (ov-method (if (eolp) 'after-string 'display))
+               (ov-start (point))
+               (ov-end (if (eq ov-method 'display) (1+ ov-start) ov-start))
+               ;; When using 'display', we include the character next
+               ;; to the current point into the overlay to ensure its
+               ;; visibility, as the overlay otherwise conceals it.
+               (offset-char (if (eq ov-method 'after-string)
+                              ""
+                              (buffer-substring ov-start ov-end)))
+               (ov (make-overlay ov-start ov-end)))
     (setq minuet--current-suggestions suggestions
-          minuet--current-suggestion-index index
-          minuet--last-point ov-start
-          minuet--current-suggestion-line-index 0
-          minuet--continue-point nil)
+      minuet--current-suggestion-index index
+      minuet--current-suggestion-line-index 0
+      minuet--continue-point nil)
     (minuet--display-suggestion-overlay
-     suggestion index total ov-method ov-start ov-end offset-char)
+      suggestion index total ov ov-method ov-start ov-end offset-char)
     ))
 
 ;;;###autoload
@@ -563,12 +564,12 @@ Also cancel any pending requests unless NO-CANCEL is t."
   "Cycle to previous suggestion."
   (interactive)
   (if (and minuet--current-suggestions
-           minuet--current-overlay)
-      (let ((prev-index (mod (1- minuet--current-suggestion-index)
-                             (length minuet--current-suggestions))))
-        (minuet--display-suggestion minuet--current-suggestions prev-index)
-        (setq minuet--current-suggestion-line-index 0
-              minuet--continue-point nil))
+        minuet--current-overlay)
+    (let ((prev-index (mod (1- minuet--current-suggestion-index)
+                        (length minuet--current-suggestions))))
+      (minuet--display-suggestion minuet--current-suggestions prev-index)
+      (setq minuet--current-suggestion-line-index 0
+        minuet--continue-point nil))
     (minuet-show-suggestion)))
 
 ;;;###autoload
@@ -866,13 +867,17 @@ cleaned up after accepting."
       ;; Only cleanup if keep-suggestion is nil (false)
       (unless keep-suggestion
         (minuet--cleanup-suggestion))
-      (insert (string-join selected-lines "\n"))
+      (insert (format "%s\n" (string-join selected-lines "\n")))
       (when keep-suggestion
-        (setq minuet--continue-point (point))))))
+        (if (< minuet--current-suggestion-line-index n-lines)
+          (setq minuet--continue-point (point))
+          (setq minuet--continue-point nil)))
+      )))
 
 ;;;###autoload
 (defun minuet-accept-suggestion-line-continue ()
   "Accept 1 line of current suggestion, and continue to keep the suggestions open."
+  (interactive)
   (minuet-accept-suggestion-line 1 t))
 
 ;;;###autoload
