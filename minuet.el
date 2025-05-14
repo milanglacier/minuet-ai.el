@@ -859,15 +859,15 @@ cleaned up after accepting."
   (when (and minuet--current-suggestions
              minuet--current-overlay)
     (let* ((suggestion (nth minuet--current-suggestion-index
-                            minuet--current-suggestions))
-           (lines (split-string suggestion "\n"))
-           (n (or n 1)) ; Default n to 1 if not provided
-           (selected-lines (seq-take (seq-drop lines minuet--current-suggestion-line-index) n)))
+                         minuet--current-suggestions))
+            (lines (split-string suggestion "\n"))
             (n-lines (length lines))
+            (n (or n 1)) ; Default n to 1 if not provided
+            (selected-lines (seq-take (seq-drop lines minuet--current-suggestion-line-index) n)))
       ;; Update minuet--current-suggestion-line-index
       (when keep-suggestion
         (setq minuet--current-suggestion-line-index
-              (+ minuet--current-suggestion-line-index n)))
+          (+ minuet--current-suggestion-line-index n)))
       ;; Only cleanup if keep-suggestion is nil (false)
       (unless keep-suggestion
         (minuet--cleanup-suggestion))
