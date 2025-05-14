@@ -920,11 +920,11 @@ used to accumulate text output from a process.  After execution,
   (interactive)
   (when (and minuet--current-suggestions
           minuet--current-overlay)
-    (let ((suggestion (nth minuet--current-suggestion-index
-                        minuet--current-suggestions))
-           (lines (split-string suggestion "\n"))
-           (selected-lines (seq-drop lines minuet--current-suggestion-line-index))
-           (new-suggestion (string-join selected-lines "\n")))
+    (let* ((suggestion (nth minuet--current-suggestion-index
+                         minuet--current-suggestions))
+            (lines (split-string suggestion "\n"))
+            (selected-lines (seq-drop lines minuet--current-suggestion-line-index))
+            (new-suggestion (string-join selected-lines "\n")))
       (minuet--cleanup-suggestion)
       (insert new-suggestion "\n"))))
 
