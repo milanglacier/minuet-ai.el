@@ -664,7 +664,7 @@ Also print the MESSAGE when MESSAGE-P is t."
   "Add comment string for tab use into the prompt."
   (if-let* ((language-p (derived-mode-p 'prog-mode 'text-mode 'conf-mode))
              (commentstring (format "%s %%s%s"
-                              (or (replace-regexp-in-string "^%" "%%" comment-start) "#")
+                              (or (replace-regexp-in-string "^%" "%%" (or comment-start "#")) "#")
                               (or comment-end ""))))
     (if indent-tabs-mode
       (format commentstring "indentation: use \t for a tab")
@@ -678,7 +678,7 @@ Also print the MESSAGE when MESSAGE-P is t."
              (mode (replace-regexp-in-string "-ts-mode" "" mode))
              (mode (replace-regexp-in-string "-mode" "" mode))
              (commentstring (format "%s %%s%s"
-                              (or (replace-regexp-in-string "^%" "%%" comment-start) "#")
+                              (or (replace-regexp-in-string "^%" "%%" (or comment-start "#")) "#")
                               (or comment-end ""))))
     (format commentstring (concat "language: " mode))
     ""))
