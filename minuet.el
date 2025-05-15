@@ -569,6 +569,8 @@ Also cancel any pending requests unless NO-CANCEL is t."
   ;; curl requests.
   (minuet--cleanup-suggestion t)
   (add-hook 'post-command-hook #'minuet--on-cursor-moved nil t)
+  (unless suggestions
+    (minuet--log "No suggestions returned..."))
   (when-let* ((suggestions suggestions)
                (cursor-not-moved (not (minuet--cursor-moved-p)))
                (index (or index 0))
