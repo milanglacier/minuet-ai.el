@@ -491,8 +491,8 @@ Also cancel any pending requests unless NO-CANCEL is t."
 
   (unless keep-suggestion
     (setq minuet--current-suggestion-line-index 0
-      minuet--continue-point nil)
-    (setq minuet--last-point nil)))
+      minuet--continue-point nil
+      minuet--last-point nil)))
 
 (defun minuet--cursor-moved-p ()
   "Check if cursor moved from last suggestion position."
