@@ -416,8 +416,8 @@ symbol, return its value.  Else return itself."
   (when minuet--current-requests
     (dolist (proc minuet--current-requests)
       (when (process-live-p proc)
-        (minuet--log (format "%s process killed" (prin1-to-string proc)))
-        (delete-process proc)))
+        (minuet--log (format "%s process terminated" (prin1-to-string proc)))
+        (signal-process proc 'SIGTERM)))
     (setq minuet--current-requests nil)))
 
 (defun minuet--cleanup-suggestion (&optional no-cancel)
