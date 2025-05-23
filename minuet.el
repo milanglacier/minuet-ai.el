@@ -268,6 +268,7 @@ fib(5)")
 
 (defvar minuet-claude-options
   `(:model "claude-3-5-haiku-20241022"
+    :end-point "https://api.anthropic.com/v1/messages"
     :max_tokens 512
     :api-key "ANTHROPIC_API_KEY"
     :system
@@ -348,6 +349,7 @@ fib(5)")
 
 (defvar minuet-gemini-options
   `(:model "gemini-2.0-flash"
+    :end-point "https://generativelanguage.googleapis.com/v1beta/models"
     :api-key "GEMINI_API_KEY"
     :system
     (:template minuet-default-system-template
@@ -1102,7 +1104,7 @@ CONTEXT is to be used to build the prompt.  CALLBACK is the function
 to be called when completion items arrive."
   (minuet--with-temp-response
     (push
-     (plz 'post "https://api.anthropic.com/v1/messages"
+     (plz 'post (plist-get minuet-claude-options :end-point)
        :headers `(("Content-Type" . "application/json")
                   ("Accept" . "application/json")
                   ("x-api-key" . ,(minuet--get-api-key (plist-get minuet-claude-options :api-key)))
@@ -1170,7 +1172,8 @@ CONTEXT is to be used to build the prompt.  CALLBACK is the function
 to be called when completion items arrive."
   (minuet--with-temp-response
     (push
-     (plz 'post (format "https://generativelanguage.googleapis.com/v1beta/models/%s:streamGenerateContent?alt=sse&key=%s"
+     (plz 'post (format "%s/%s:streamGenerateContent?alt=sse&key=%s"
+                        (plist-get minuet-gemini-options :end-point)
                         (plist-get minuet-gemini-options :model)
                         (minuet--get-api-key (plist-get minuet-gemini-options :api-key)))
        :headers `(("Content-Type" . "application/json")
