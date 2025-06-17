@@ -61,8 +61,8 @@ as dancers move during a minuet.
 
 **With minibuffer frontend**:
 
-Note: Previewing insertion results within the buffer requires the
-`consult` package.
+Note: Previewing insertion results within the buffer requires the `consult`
+package.
 
 ![example-completion-in-region](./assets/minuet-completion-in-region.jpg)
 
@@ -289,16 +289,28 @@ significantly slow down the default provider used by Minuet
 (`openai-fim-compatible` with deepseek). We recommend trying alternative
 providers instead.
 
+For Gemini model users:
+
+<details>
+
+We recommend using `gemini-2.0-flash` over `gemini-2.5-flash`, as the 2.0
+version offers significantly lower costs with comparable performance. The
+primary improvement in version 2.5 lies in its extended thinking mode, which
+provides minimal value for code completion scenarios. Furthermore, the thinking
+mode substantially increases latency, so we recommend disabling it entirely.
+
+</details>
+
 ## Understanding Model Speed
 
 For cloud-based providers,
-[Openrouter](https://openrouter.ai/google/gemini-2.0-flash-001/providers)
-offers a valuable resource for comparing the speed of both closed-source and
+[Openrouter](https://openrouter.ai/google/gemini-2.0-flash-001/providers) offers
+a valuable resource for comparing the speed of both closed-source and
 open-source models hosted by various cloud inference providers.
 
 When assessing model speed, two key metrics are latency (time to first token)
-and throughput (tokens per second). Latency is often a more critical factor
-than throughput.
+and throughput (tokens per second). Latency is often a more critical factor than
+throughput.
 
 Ideally, one would aim for a latency of less than 1 second and a throughput
 exceeding 100 tokens per second.
@@ -560,6 +572,12 @@ settings following the example:
   (:category "HARM_CATEGORY_SEXUALLY_EXPLICIT"
    :threshold "BLOCK_NONE")])
 ```
+
+We recommend using `gemini-2.0-flash` over `gemini-2.5-flash`, as the 2.0
+version offers significantly lower costs with comparable performance. The
+primary improvement in version 2.5 lies in its extended thinking mode, which
+provides minimal value for code completion scenarios. Furthermore, the thinking
+mode substantially increases latency, so we recommend disabling it entirely.
 
 </details>
 
