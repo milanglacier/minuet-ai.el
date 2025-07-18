@@ -382,7 +382,7 @@ Example usage:
 ;; delete :max-tokens field
 \(minuet-set-nested-plist `minuet-openai-options' nil :optional :max-tokens)"
   (if (null attributes)
-      (error "minuet-set-nested-plist requires at least one attribute key"))
+      (error "Minuet-set-nested-plist requires at least one attribute key"))
   (if val
       (let ((access-form plist))
         (dolist (attr attributes)
