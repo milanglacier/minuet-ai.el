@@ -529,7 +529,7 @@ Also cancel any pending requests unless NO-CANCEL is t."
     (funcall complete-fn
              context
              (lambda (items)
-               (setq items (-distinct items))
+               (setq items (seq-uniq items))
                (with-current-buffer current-buffer
                  (when (and items (not (minuet--cursor-moved-p)))
                    (minuet--display-suggestion items 0)))))))
@@ -827,7 +827,7 @@ many lines.  Without a prefix argument, accept only the first line."
                  (setq items (if minuet-add-single-line-entry
                                  (minuet--add-single-line-entry items)
                                items)
-                       items (-distinct items))
+                       items (seq-uniq items))
                  ;; close current minibuffer session, if any
                  (when (active-minibuffer-window)
                    (abort-recursive-edit))
