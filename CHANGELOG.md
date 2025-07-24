@@ -1,9 +1,35 @@
+# Version 0.5.5 (2025-07-24)
+
+This is primarily a maintenance release with minor feature updates and
+improvements.
+
+## Features
+
+- Configurable Endpoints for Gemini and Claude: Users can now specify custom API
+  endpoints for Gemini and Claude providers.
+- The `chat-input-template` can now be a list of strings, which will be
+  constructed into multi-turn conversations, allowing for more organized and
+  complex prompt structures.
+- Added `minuet-set-nested-plist` for easier manipulation of nested plists in
+  configurations.
+- The default model for the `openai-compatible` provider is now
+  `devstral-small-2505`.
+- The default model for the `openai` provider has been updated to
+  `gpt-4.1-mini`.
+
+## Fixes
+
+- Switched from `delete-process` to sending a `SIGTERM` signal to gracefully
+  cancel in-flight requests.
+
 # Version 0.5.4 (2025-04-13)
 
 ## Features
+
 - Add option to show error message on minibuffer and improve error message
 
 ## Bug Fixes
+
 - Fix overlay positioning when not at the end-of-line
 
 # Version 0.5.3 (2025-04-08)
