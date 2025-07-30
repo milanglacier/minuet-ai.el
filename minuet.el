@@ -1172,11 +1172,11 @@ CONTEXT is to be used to build the prompt.  CALLBACK is the function
 to be called when completion items arrive."
   (minuet--with-temp-response
     (push
-     (plz 'post (format "%s/%s:streamGenerateContent?alt=sse&key=%s"
+     (plz 'post (format "%s/%s:streamGenerateContent?alt=sse"
                         (plist-get minuet-gemini-options :end-point)
-                        (plist-get minuet-gemini-options :model)
-                        (minuet--get-api-key (plist-get minuet-gemini-options :api-key)))
+                        (plist-get minuet-gemini-options :model))
        :headers `(("Content-Type" . "application/json")
+                  ("x-goog-api-key" . ,(minuet--get-api-key (plist-get minuet-gemini-options :api-key)))
                   ("Accept" . "application/json"))
        :timeout minuet-request-timeout
        :body
