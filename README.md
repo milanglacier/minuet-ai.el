@@ -299,8 +299,6 @@ Note: You can review the buffer contents in `*minuet*` to identify any
 errors returned by the provider in case of misconfiguration in your
 options.
 
-</details>
-
 ## Understanding Model Speed
 
 For cloud-based providers,
