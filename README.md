@@ -289,15 +289,15 @@ significantly slow down the default provider used by Minuet
 (`openai-fim-compatible` with deepseek). We recommend trying alternative
 providers instead.
 
-For Gemini model users:
+We **do not** recommend using thinking models, as this mode
+significantly increases latency—even with the fastest models. However,
+if you choose to use thinking models, please ensure that their
+thinking capabilities are disabled.  Refer to the following examples
+for guidance on how to disable the thinking feature.
 
-<details>
-
-We recommend using `gemini-2.0-flash` over `gemini-2.5-flash`, as the 2.0
-version offers significantly lower costs with comparable performance. The
-primary improvement in version 2.5 lies in its extended thinking mode, which
-provides minimal value for code completion scenarios. Furthermore, the thinking
-mode substantially increases latency, so we recommend disabling it entirely.
+Note: You can review the buffer contents in `*minuet*` to identify any
+errors returned by the provider in case of misconfiguration in your
+options.
 
 </details>
 
@@ -454,6 +454,12 @@ Below is the default value:
       :optional nil)
     "config options for Minuet OpenAI provider")
 
+```
+
+You can disable thinking mode with the following configuration:
+
+```lisp
+(minuet-set-optional-options minuet-openai-options :reasoning_effort "minimal")
 ```
 
 </details>
