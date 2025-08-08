@@ -322,24 +322,16 @@ represents the **default setting** applied to Gemini.
     :config
     (setq minuet-provider 'gemini)
 
-    (defvar mg-minuet-gemini-prompt
-        "You are the backend of an AI-powered code completion engine. Your task is to
-provide code suggestions based on the user's input. The user's code will be
-enclosed in markers:
+    (defvar my-minuet-gemini-prompt minuet-default-prompt-prefix-first)
 
-- `<contextAfterCursor>`: Code context after the cursor
-- `<cursorPosition>`: Current cursor location
-- `<contextBeforeCursor>`: Code context before the cursor
-")
-
-    (defvar mg-minuet-gemini-chat-input-template
+    (defvar my-minuet-gemini-chat-input-template
         "{{{:language-and-tab}}}
 <contextBeforeCursor>
 {{{:context-before-cursor}}}<cursorPosition>
 <contextAfterCursor>
 {{{:context-after-cursor}}}")
 
-    (defvar mg-minuet-gemini-fewshots
+    (defvar my-minuet-gemini-fewshots
         `((:role "user"
            :content "# language: javascript
 <contextBeforeCursor>
@@ -358,12 +350,12 @@ const processedData = transformData(rawData, {
           ,(cadr minuet-default-fewshots)))
 
     (minuet-set-optional-options minuet-gemini-options
-                                 :prompt 'mg-minuet-gemini-prompt
+                                 :prompt 'my-minuet-gemini-prompt
                                  :system)
     (minuet-set-optional-options minuet-gemini-options
-                                 :template 'mg-minuet-gemini-chat-input-template
+                                 :template 'my-minuet-gemini-chat-input-template
                                  :chat-input)
-    (plist-put minuet-gemini-options :fewshots 'mg-minuet-gemini-fewshots)
+    (plist-put minuet-gemini-options :fewshots 'my-minuet-gemini-fewshots)
 
     (minuet-set-optional-options minuet-gemini-options
                                  :generationConfig
