@@ -344,7 +344,7 @@ const processedData = transformData(rawData, {
 (defvar minuet-openai-compatible-options
   `(:end-point "https://openrouter.ai/api/v1/chat/completions"
     :api-key "OPENROUTER_API_KEY"
-    :model "mistralai/devstral-small-2505"
+    :model "mistralai/devstral-small"
     :system
     (:template minuet-default-system-template
      :prompt minuet-default-prompt
