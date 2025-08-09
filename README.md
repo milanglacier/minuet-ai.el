@@ -4,7 +4,7 @@
 - [Installation](#installation)
 - [Quick Start: LLM Provider Examples](#quick-start-llm-provider-examples)
   - [Ollama Qwen-2.5-coder:3b](#ollama-qwen-25-coder3b)
-  - [OpenRouter Deepseek-V3-0324](#openrouter-deepseek-v3-0324)
+  - [OpenRouter Kimi-K2](#openrouter-kimi-k2)
   - [Llama.cpp Qwen-2.5-coder:1.5b](#llamacpp-qwen-25-coder15b)
 - [API Keys](#api-keys)
 - [Selecting a Provider or Model](#selecting-a-provider-or-model)
@@ -161,7 +161,7 @@ preferred package managers.
 
 </details>
 
-## OpenRouter Deepseek-V3-0324
+## OpenRouter Kimi-K2
 
 <details>
 
@@ -175,7 +175,7 @@ preferred package managers.
 
     (plist-put minuet-openai-compatible-options :end-point "https://openrouter.ai/api/v1/chat/completions")
     (plist-put minuet-openai-compatible-options :api-key "OPENROUTER_API_KEY")
-    (plist-put minuet-openai-compatible-options :model "deepseek/deepseek-chat-v3-0324")
+    (plist-put minuet-openai-compatible-options :model "moonshotai/kimi-k2")
 
 
     ;; Prioritize throughput for faster completion
