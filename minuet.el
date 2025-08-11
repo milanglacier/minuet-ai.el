@@ -164,10 +164,10 @@ value, that common portion is trimmed from the candidate.
 For example, if the value is 15, and a completion candidate ends with
 a 20-character string that exactly matches the 20 characters following
 the cursor, the candidate will be truncated by those 20 characters
-before being presented."
+before being delivered."
   :type 'integer)
 
-(defcustom minuet-before-cursor-filter-length 3
+(defcustom minuet-before-cursor-filter-length 1
   "Length of context before cursor used to filter completion text.
 
 This setting helps prevent the language model from generating
@@ -182,7 +182,7 @@ value, that common portion is trimmed from the candidate.
 For example, if the value is 3, and a completion candidate starts with
 a 10-character string where the last 3 characters exactly match the 3
 characters before the cursor, the candidate will be truncated by those
-3 characters before being presented."
+3 characters before being delivered."
   :type 'integer)
 
 (defcustom minuet-n-completions 3
