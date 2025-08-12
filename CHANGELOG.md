@@ -1,3 +1,24 @@
+# Version 0.6.0 (2025-08-11)
+
+## Breaking Change
+
+- Improve completion filtering with before/after context:
+  - Refactors the completion filtering logic to be based on the longest common
+    match.
+  - Add a new `minuet-before-cursor-filter-length` config option to trim
+    duplicated prefixes from completions based on the text before the cursor.
+- Change default few-shot example: The default few-shot example has been updated
+  to require the AI to combine information from before and after the cursor to
+  generate the correct logic.
+- Update default system prompt: The system prompt is refined to be more concise
+  and provide clearer instructions to the AI on handling various completion
+  scenarios like code, comments, and strings.
+
+## Other
+
+- Updated Gemini Authentication: Switched to using the `x-goog-api-key` header
+  for Gemini API requests to align with upstream changes.
+
 # Version 0.5.5 (2025-07-24)
 
 This is primarily a maintenance release with minor feature updates and
