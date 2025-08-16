@@ -167,7 +167,7 @@ the cursor, the candidate will be truncated by those 20 characters
 before being delivered."
   :type 'integer)
 
-(defcustom minuet-before-cursor-filter-length 1
+(defcustom minuet-before-cursor-filter-length 2
   "Length of context before cursor used to filter completion text.
 
 This setting helps prevent the language model from generating
