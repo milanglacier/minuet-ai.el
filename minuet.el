@@ -336,6 +336,7 @@ const processedData = transformData(rawData, {
 (defvar minuet-openai-options
   `(:model "gpt-4.1-mini"
     :api-key "OPENAI_API_KEY"
+    :end-point "https://api.openai.com/v1/chat/completions"
     :system
     (:template minuet-default-system-template
      :prompt minuet-default-prompt
@@ -1161,9 +1162,7 @@ to be called when completion items arrive."
   "Complete code with OpenAI.
 CONTEXT and CALLBACK will be passed to the base function."
   (minuet--openai-complete-base
-   (--> (copy-tree minuet-openai-options)
-        (plist-put it :end-point "https://api.openai.com/v1/chat/completions"))
-   context callback))
+   (copy-tree minuet-openai-options) context callback))
 
 (defun minuet--openai-compatible-complete (context callback)
   "Complete code with OpenAI compatible service.
