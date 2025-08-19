@@ -353,6 +353,7 @@ const processedData = transformData(rawData, {
 
 (defvar minuet-codestral-options
   '(:model "codestral-latest"
+    :name "Codestral"
     :end-point "https://codestral.mistral.ai/v1/fim/completions"
     :api-key "CODESTRAL_API_KEY"
     :template (:prompt minuet--default-fim-prompt-function
@@ -712,7 +713,7 @@ conversation with alternating `user` and `assistant` roles by
     (nreverse results)))
 
 (cl-defun minuet--filter-text (item context)
-  "Filter ITEM based on CONTEXT using minuet-find-longest-match.
+  "Filter ITEM based on CONTEXT using `minuet-find-longest-match'.
 ITEM is a completion candidate string.
 CONTEXT is a plist with :before-cursor and :after-cursor fields.
 Returns the filtered item after trimming overlapping parts."
@@ -1074,7 +1075,7 @@ arrive."
   "Complete code with codestral.
 CONTEXT and CALLBACK will be passed to the base function."
   (minuet--openai-fim-complete-base
-   (plist-put (copy-tree minuet-codestral-options) :name "Codestral")
+   minuet-codestral-options
    (plist-get minuet-codestral-options :get-text-fn)
    context
    callback))
@@ -1083,7 +1084,7 @@ CONTEXT and CALLBACK will be passed to the base function."
   "Complete code with openai fim API.
 CONTEXT and CALLBACK will be passed to the base function."
   (minuet--openai-fim-complete-base
-   (copy-tree minuet-openai-fim-compatible-options)
+   minuet-openai-fim-compatible-options
    (plist-get minuet-openai-fim-compatible-options :get-text-fn)
    context
    callback))
@@ -1161,14 +1162,12 @@ to be called when completion items arrive."
 (defun minuet--openai-complete (context callback)
   "Complete code with OpenAI.
 CONTEXT and CALLBACK will be passed to the base function."
-  (minuet--openai-complete-base
-   (copy-tree minuet-openai-options) context callback))
+  (minuet--openai-complete-base minuet-openai-options context callback))
 
 (defun minuet--openai-compatible-complete (context callback)
   "Complete code with OpenAI compatible service.
 CONTEXT and CALLBACK will be passed to the base function."
-  (minuet--openai-complete-base
-   (copy-tree minuet-openai-compatible-options) context callback))
+  (minuet--openai-complete-base minuet-openai-compatible-options context callback))
 
 (defun minuet--claude-get-text-fn (json)
   "Function to get the completion from a JSON object for claude."
@@ -1190,7 +1189,7 @@ to be called when completion items arrive."
        :timeout minuet-request-timeout
        :body
        (json-serialize
-        (let ((options (copy-tree minuet-claude-options)))
+        (let ((options minuet-claude-options))
           `(,@(plist-get options :optional)
             :stream t
             :model ,(plist-get options :model)
@@ -1259,7 +1258,7 @@ to be called when completion items arrive."
        :timeout minuet-request-timeout
        :body
        (json-serialize
-        (let* ((options (copy-tree minuet-gemini-options))
+        (let* ((options minuet-gemini-options)
                (fewshots (minuet--eval-value (plist-get options :fewshots)))
                (fewshots (minuet--transform-openai-chat-to-gemini-chat fewshots)))
           `(,@(plist-get options :optional)
