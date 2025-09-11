@@ -1047,8 +1047,6 @@ arrive."
            :then
            (lambda (json)
              (when-let* ((result (minuet--stream-decode json get-text-fn)))
-               ;; append the current result into the completion items list
-               ;; use append instead of push (to the front) to keep the order of the result, because the first result is already shown
                (setq completion-items (append completion-items (list result))))
              (setq completion-items (minuet--filter-context-sequence-in-items
                                      completion-items
