@@ -495,8 +495,7 @@ Also cancel any pending requests unless NO-CANCEL is t."
     (minuet--cleanup-suggestion)))
 
 (defun minuet--display-suggestion (suggestions &optional index)
-  "Display suggestion from SUGGESTIONS at INDEX using an overlay at point.
-When INDEX is not provided (nil), current selected index would be kept."
+  "Display suggestion from SUGGESTIONS at INDEX using an overlay at point."
   ;; we only cancel requests when cursor is moved. Because the
   ;; completion items may be accumulated during multiple concurrent
   ;; curl requests.
@@ -504,8 +503,8 @@ When INDEX is not provided (nil), current selected index would be kept."
   (add-hook 'post-command-hook #'minuet--on-cursor-moved nil t)
   (when-let* ((suggestions suggestions)
               (cursor-not-moved (not (minuet--cursor-moved-p)))
+              (index (or index 0))
               (total (length suggestions))
-              (index (or index (mod minuet--current-suggestion-index total)))
               (suggestion (nth index suggestions))
               ;; 'Display' is used when not at the end-of-line to
               ;; ensure proper overlay positioning. Other methods,
@@ -574,7 +573,7 @@ When INDEX is not provided (nil), current selected index would be kept."
         (available-p-fn (intern (format "minuet--%s-available-p" minuet-provider)))
         (complete-fn (intern (format "minuet--%s-complete" minuet-provider)))
         (context (minuet--get-context))
-        (displayed-once nil))
+        (is-first-completion t))
     (unless (funcall available-p-fn)
       (minuet--log (format "Minuet provider %s is not available" minuet-provider))
       (error "Minuet provider %s is not available" minuet-provider))
@@ -584,9 +583,9 @@ When INDEX is not provided (nil), current selected index would be kept."
                (setq items (seq-uniq items))
                (with-current-buffer current-buffer
                  (when (and items (not (minuet--cursor-moved-p)))
-                   ;; reset index to 0 only on first display; otherwise keep the current selected index
-                   (minuet--display-suggestion items (unless displayed-once 0))))
-               (setq displayed-once t)))))
+                   (minuet--display-suggestion
+                    items (if is-first-completion 0 minuet--current-suggestion-index))))
+               (setq is-first-completion nil)))))
 
 (defun minuet--log (message &optional message-p)
   "Log minuet messages into `minuet-buffer-name'.
