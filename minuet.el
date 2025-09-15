@@ -503,8 +503,8 @@ Also cancel any pending requests unless NO-CANCEL is t."
   (add-hook 'post-command-hook #'minuet--on-cursor-moved nil t)
   (when-let* ((suggestions suggestions)
               (cursor-not-moved (not (minuet--cursor-moved-p)))
-              (index (or index 0))
               (total (length suggestions))
+              (index (mod (or index 0) total))
               (suggestion (nth index suggestions))
               ;; 'Display' is used when not at the end-of-line to
               ;; ensure proper overlay positioning. Other methods,
