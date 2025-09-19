@@ -853,6 +853,29 @@ used to accumulate text output from a process.  After execution,
   (declare (debug t) (indent 0))
   `(let (--response--) ,@body))
 
+(defun minuet--suggestion-prefix-length (text lines)
+  "Return the length of TEXT covering LINES lines.
+The returned value includes trailing newlines for the consumed lines."
+  (let* ((lines (max 0 lines))
+         (len (length text))
+         (pos 0)
+         (count 0))
+    (while (and (< count lines)
+                (< pos len))
+      (setq count (1+ count))
+      (let ((newline (string-match "\n" text pos)))
+        (if newline
+            (setq pos (min len (1+ newline)))
+          (setq pos len))))
+    pos))
+
+(defun minuet--move-to-front (list element)
+  "Return LIST with ELEMENT moved to the front.
+If ELEMENT is not present, return LIST unchanged."
+  (if (member element list)
+      (cons element (cl-remove element list :count 1 :test #'equal))
+    list))
+
 ;;;###autoload
 (defun minuet-accept-suggestion ()
   "Accept the current overlay suggestion."
@@ -878,13 +901,34 @@ many lines.  Without a prefix argument, accept only the first line."
   (interactive "p")
   (when (and minuet--current-suggestions
              minuet--current-overlay)
-    (let* ((suggestion (nth minuet--current-suggestion-index
+    (let* ((n (prefix-numeric-value (or n 1)))
+           (n (max 1 (abs n)))
+           (suggestion (nth minuet--current-suggestion-index
                             minuet--current-suggestions))
-           (lines (split-string suggestion "\n"))
-           (n (or n 1))
-           (selected-lines (seq-take lines n)))
+           (prefix-length (minuet--suggestion-prefix-length suggestion n))
+           (accepted-text (substring suggestion 0 prefix-length))
+           (matching (seq-filter
+                      (lambda (candidate)
+                        (and (string-prefix-p accepted-text candidate)
+                             (< prefix-length (length candidate))))
+                      minuet--current-suggestions))
+           (ordered (minuet--move-to-front matching suggestion))
+           (pairs (mapcar (lambda (candidate)
+                            (cons candidate (substring candidate prefix-length)))
+                          ordered))
+           (pairs (seq-filter (lambda (pair)
+                                (not (string-empty-p (cdr pair))))
+                              pairs))
+           (display-list (mapcar #'cdr pairs))
+           (display-index (or (cl-position suggestion pairs :key #'car :test #'equal)
+                              0)))
       (minuet--cleanup-suggestion)
-      (insert (string-join selected-lines "\n")))))
+      (unless (string-empty-p accepted-text)
+        (insert accepted-text))
+      (if display-list
+          (minuet--display-suggestion display-list display-index)
+        (setq minuet--current-suggestions nil
+              minuet--current-suggestion-index 0)))))
 
 ;;;###autoload
 (defun minuet-complete-with-minibuffer ()
