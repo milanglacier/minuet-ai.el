@@ -18,6 +18,8 @@
 
 - Updated Gemini Authentication: Switched to using the `x-goog-api-key` header
   for Gemini API requests to align with upstream changes.
+- Added `minuet-continuous-accept` so partially accepted suggestions remain
+  available for additional accepts.
 
 # Version 0.5.5 (2025-07-24)
 

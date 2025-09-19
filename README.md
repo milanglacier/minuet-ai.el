@@ -112,6 +112,8 @@ preferred package managers.
     :config
     ;; You can use M-x minuet-configure-provider to interactively configure provider and model
     (setq minuet-provider 'openai-fim-compatible)
+    ;; Disable continuous partial accepts if you prefer one-shot inserts.
+    ;; (setq minuet-continuous-accept nil)
 
     (minuet-set-optional-options minuet-openai-fim-compatible-options :max_tokens 64))
 
