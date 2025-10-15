@@ -317,7 +317,7 @@ const processedData = transformData(rawData, {
 (defvar minuet-claude-options
   `(:model "claude-haiku-4-5"
     :end-point "https://api.anthropic.com/v1/messages"
-    :max_tokens 512
+    :max_tokens 256
     :api-key "ANTHROPIC_API_KEY"
     :system
     (:template minuet-default-system-template
