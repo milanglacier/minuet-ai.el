@@ -454,11 +454,21 @@ Below is the default value:
 
 ```
 
-You can disable thinking mode with the following configuration:
+The following configuration is not the default, but recommended to prevent
+request timeout from outputing too many tokens.
 
 ```lisp
+(minuet-set-optional-options minuet-openai-options :max_completion_tokens 127)
 (minuet-set-optional-options minuet-openai-options :reasoning_effort "minimal")
 ```
+
+Note: If you intend to use GPT-5 series models (e.g., `gpt-5-mini` or
+`gpt-5-nano`), please adhere to the following requirements:
+
+1. Use `max_completion_tokens` instead of `max_tokens`.
+2. These models do not support `top_p` or `temperature` adjustments.
+3. Ensure `reasoning_effort` is set to `minimal` and update your request
+   options accordingly.
 
 </details>
 
@@ -622,6 +632,17 @@ request timeout from outputing too many tokens.
 ```lisp
 (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 256)
 (minuet-set-optional-options minuet-openai-compatible-options :top_p 0.9)
+;; Optionally configure the reasoning effort if you are using a thinking model.
+(minuet-set-optional-options
+  minuet-openai-compatible-options
+  :reasoning
+  ;; '(:max_tokens 0) for Anthropic style
+  '(:effort "minimal")) ; for OpenAI style
+;; Alternatively, disable reasoning entirely if the model supports it.
+(minuet-set-optional-options
+  minuet-openai-compatible-options
+  :reasoning
+  '(:enabled :false))
 ```
 
 </details>
