@@ -1391,14 +1391,9 @@ settings, as an alternative to manual configuration via `setq' and
 `openai-fim-compatible' providers, users will be prompted to specify
 their endpoint and API key."
   (interactive)
-  (let* ((providers '(("OpenAI" . openai)
-                      ("Claude" . claude)
-                      ("Codestral" . codestral)
-                      ("OpenAI Compatible" . openai-compatible)
-                      ("OpenAI FIM Compatible" . openai-fim-compatible)
-                      ("Gemini" . gemini)))
+  (let* ((providers (mapcar #'cddr (cdr (get 'minuet-provider 'custom-type))))
          (provider-name (completing-read "Select provider: " providers nil t))
-         (provider (alist-get provider-name providers nil nil #'equal))
+         (provider (car (alist-get provider-name providers nil nil #'equal)))
          (options-sym (intern (format "minuet-%s-options" provider)))
          (options (symbol-value options-sym))
          (current-model (plist-get options :model))
