@@ -891,6 +891,12 @@ many lines.  Without a prefix argument, accept only the first line."
       (if remaining-suggestion
           (progn
             (insert "\n") ;; There is a remaining suggestion, so move to the next line.
+            ;; NOTE: We do not need to worry about Minuet
+            ;; automatically triggering the next suggestion upon
+            ;; continuous acceptance.  Minuet only attempts
+            ;; auto-suggestion when the last command was not a Minuet
+            ;; command. Since we have just accepted partial lines, the
+            ;; last command is indeed a Minuet command.
             (minuet--display-suggestion (list remaining-suggestion) 0))
         (minuet--cleanup-suggestion)))))
 
