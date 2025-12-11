@@ -882,9 +882,17 @@ many lines.  Without a prefix argument, accept only the first line."
                             minuet--current-suggestions))
            (lines (split-string suggestion "\n"))
            (n (or n 1))
-           (selected-lines (seq-take lines n)))
+           (selected-lines (seq-take lines n))
+           (remaining-lines (seq-drop lines n))
+           (remaining-suggestion (when remaining-lines
+                                   (string-join remaining-lines "\n"))))
       (minuet--cleanup-suggestion)
-      (insert (string-join selected-lines "\n")))))
+      (insert (string-join selected-lines "\n"))
+      (if remaining-suggestion
+          (progn
+            (insert "\n") ;; There is a remaining suggestion, so move to the next line.
+            (minuet--display-suggestion (list remaining-suggestion) 0))
+        (minuet--cleanup-suggestion)))))
 
 ;;;###autoload
 (defun minuet-complete-with-minibuffer ()
