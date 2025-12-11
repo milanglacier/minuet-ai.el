@@ -1,3 +1,21 @@
+# Version 0.7.0 (2025-12-11)
+
+## Breaking Changes
+
+- Default value for `minuet-before-cursor-filter-length` has been changed to `2`
+
+## Features
+
+- completion: Preserve remaining suggestion when using
+  `minuet-accept-suggestion-line` for continuous suggestion acceptance
+- claude: Change default max tokens to 256.
+- claude: Update default model to `claude-4.5-haiku`.
+
+## Fixes
+
+- display: Keep user selected index when displaying more results (#47).
+- display: Keep completion items order when new items arrived (#46).
+
 # Version 0.6.0 (2025-08-11)
 
 ## Breaking Change
