@@ -61,10 +61,13 @@
   "Debounce delay in seconds for auto-suggestions."
   :type 'number)
 
-(defcustom minuet-auto-suggestion-block-functions '(minuet-evil-not-insert-state-p)
+(define-obsolete-variable-alias 'minuet-auto-suggestion-block-functions
+  'minuet-auto-suggestion-block-predicates "0.7.1")
+
+(defcustom minuet-auto-suggestion-block-predicates '(minuet-evil-not-insert-state-p)
   "List of functions to determine whether auto-suggestions should be blocked.
 
-Each function should return non-nil if auto-suggestions should be
+Each functions should return non-nil if auto-suggestions should be
 blocked.  If any function in this list returns non-nil,
 auto-suggestions will not be shown."
   :type '(repeat function))
@@ -1330,7 +1333,8 @@ to be called when completion items arrive."
                (when (and (eq buffer (current-buffer))
                           (or (null minuet--auto-last-point)
                               (not (eq minuet--auto-last-point (point))))
-                          (not (run-hook-with-args-until-success 'minuet-auto-suggestion-block-functions)))
+                          (not (run-hook-with-args-until-success
+                                'minuet-auto-suggestion-block-predicates)))
                  (setq minuet--last-auto-suggestion-time (current-time)
                        minuet--auto-last-point (point))
                  (minuet-show-suggestion))))))))
