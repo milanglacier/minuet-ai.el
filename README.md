@@ -59,6 +59,8 @@ as dancers move during a minuet.
   Llama.cpp and OpenAI-compatible providers)
 - Customizable configuration options
 - Streaming support to enable completion delivery even with slower LLMs
+- Accept completions continuously, one line at a time, so longer suggestions
+  can be pulled in incrementally.
 
 **With minibuffer frontend**:
 
@@ -70,6 +72,11 @@ package.
 **With overlay ghost text frontend**:
 
 ![example-overlay](./assets/minuet-overlay.jpg)
+
+https://github.com/user-attachments/assets/04716eab-9acc-46f4-a47d-d6c763eca4c2
+
+<!-- The link above is a showcase video for the virtual text feature, hosted -->
+<!-- externally on GitHub. -->
 
 # Requirements
 
