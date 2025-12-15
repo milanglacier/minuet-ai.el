@@ -84,6 +84,8 @@ auto-suggestions will not be shown."
 (defvar-local minuet--current-overlay nil
   "Overlay used for displaying the current suggestion.")
 
+(defvar-local minuet--last-synced-point nil
+  "Last point where typed text was synced with the suggestion overlay.")
 
 (defvar-local minuet--last-point nil
   "Last known cursor position for suggestion overlay.")
@@ -492,10 +494,43 @@ Also cancel any pending requests unless NO-CANCEL is t."
   (and minuet--last-point
        (not (eq minuet--last-point (point)))))
 
+(defun minuet--sync-suggestion-with-typed-text ()
+  "Update the suggestion when the typed text matches its prefix.
+Return non-nil when the completion was preserved or updated."
+  (if-let*
+      ((_ (and minuet--current-suggestions
+               minuet--current-overlay
+               minuet--last-point
+               (> (point) minuet--last-point)))
+       (index (or minuet--current-suggestion-index 0))
+       (current-suggestion (nth index minuet--current-suggestions))
+       (typed (buffer-substring-no-properties minuet--last-point (point)))
+       (current-suggestion-matches-typed (and (string-prefix-p typed current-suggestion)
+                                              (length> current-suggestion (length typed))))
+       (new-suggestions
+        (mapcar (lambda (suggestion)
+                  (if (string-prefix-p typed suggestion)
+                      (substring suggestion (length typed))
+                    ;; We set the suggestion that does not match typed
+                    ;; text to "" This is to simplify the code to
+                    ;; avoid the logic that may need to reset the
+                    ;; length of minuet--current-suggestions and may
+                    ;; need to recalculate the index of the current
+                    ;; suggestion.
+                    ""))
+                minuet--current-suggestions)))
+      (progn
+        (minuet--cleanup-suggestion)
+        (minuet--display-suggestion new-suggestions index)
+        (setq minuet--last-synced-point (point))
+        t)
+    (setq minuet--last-synced-point nil)))
+
 (defun minuet--on-cursor-moved ()
   "Minuet event on cursor moved."
   (when (minuet--cursor-moved-p)
-    (minuet--cleanup-suggestion)))
+    (unless (minuet--sync-suggestion-with-typed-text)
+      (minuet--cleanup-suggestion))))
 
 (defun minuet--display-suggestion (suggestions &optional index)
   "Display suggestion from SUGGESTIONS at INDEX using an overlay at point."
@@ -1322,7 +1357,8 @@ to be called when completion items arrive."
 (defun minuet--maybe-show-suggestion ()
   "Show suggestion with debouncing and throttling."
   (when (and (minuet--is-not-on-throttle)
-             (not (minuet--is-minuet-command)))
+             (not (minuet--is-minuet-command))
+             (not (eq (point) minuet--last-synced-point)))
     (when minuet--debounce-timer
       (cancel-timer minuet--debounce-timer))
     (setq minuet--debounce-timer
