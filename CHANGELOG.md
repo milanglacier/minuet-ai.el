@@ -1,4 +1,4 @@
-# Version 0.8.0 (2025-12-15)
+# Version 0.7.1 (2025-12-15)
 
 ## Breaking Changes
 
