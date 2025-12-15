@@ -1,3 +1,16 @@
+# Version 0.8.0 (2025-12-15)
+
+## Breaking Changes
+
+- Rename `minuet-auto-suggestion-block-functions` to
+  `minuet-auto-suggestion-block-predicates`
+
+## Features
+
+- Preserved Suggestions During Multi-line Typing: Prefix-matched suggestions
+  persist even while the user is typing multi-line text, to avoid unnecessary
+  LLM requests and conserving resources.
+
 # Version 0.7.0 (2025-12-11)
 
 ## Breaking Changes
