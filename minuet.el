@@ -497,31 +497,26 @@ Also cancel any pending requests unless NO-CANCEL is t."
 (defun minuet--sync-suggestion-with-typed-text ()
   "Update the suggestion when the typed text matches its prefix.
 Return non-nil when the completion was preserved or updated."
-  (if-let*
-      ((_ (and minuet--current-suggestions
-               minuet--current-overlay
-               minuet--last-point
-               (> (point) minuet--last-point)))
-       (index (or minuet--current-suggestion-index 0))
-       (current-suggestion (nth index minuet--current-suggestions))
-       (typed (buffer-substring-no-properties minuet--last-point (point)))
-       (current-suggestion-matches-typed (and (string-prefix-p typed current-suggestion)
-                                              (length> current-suggestion (length typed))))
-       (new-suggestions
-        (mapcar (lambda (suggestion)
-                  (if (string-prefix-p typed suggestion)
-                      (substring suggestion (length typed))
-                    ;; We set the suggestion that does not match typed
-                    ;; text to "" This is to simplify the code to
-                    ;; avoid the logic that may need to reset the
-                    ;; length of minuet--current-suggestions and may
-                    ;; need to recalculate the index of the current
-                    ;; suggestion.
-                    ""))
-                minuet--current-suggestions)))
+  (if-let* ((suggestions minuet--current-suggestions)
+            (has-overlay minuet--current-overlay)
+            (last-point minuet--last-point)
+            (cursor-moved-forward (> (point) last-point))
+            (index (or minuet--current-suggestion-index 0))
+            (current-suggestion (nth index suggestions))
+            (typed (buffer-substring-no-properties last-point (point)))
+            (current-suggestion-matches-typed
+             (and (string-prefix-p typed current-suggestion)
+                  (length> current-suggestion (length typed))))
+            (matched-suggestions
+             (cl-loop for suggestion in suggestions
+                      for i from 0
+                      when (string-prefix-p typed suggestion)
+                      collect (cons i (substring suggestion (length typed)))))
+            (new-index (or (cl-position index matched-suggestions :key #'car) 0))
+            (new-suggestions (mapcar #'cdr matched-suggestions)))
       (progn
         (minuet--cleanup-suggestion)
-        (minuet--display-suggestion new-suggestions index)
+        (minuet--display-suggestion new-suggestions new-index)
         (setq minuet--last-synced-point (point))
         t)
     (setq minuet--last-synced-point nil)))
