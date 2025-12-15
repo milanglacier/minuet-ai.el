@@ -61,6 +61,9 @@ as dancers move during a minuet.
 - Streaming support to enable completion delivery even with slower LLMs
 - Accept completions continuously, one line at a time, so longer suggestions
   can be pulled in incrementally.
+- When your typed text matches the start of a suggestion, Minuet keeps the
+  completion in sync of your typed text instead of clearing it, to avoid unnecessary
+  LLM requests and conserving resources.
 
 **With minibuffer frontend**:
 
