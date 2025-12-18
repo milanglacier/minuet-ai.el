@@ -760,7 +760,6 @@ CONTEXT is a plist with :before-cursor and :after-cursor fields.
 Returns the filtered item after trimming overlapping parts."
   (when (null item)
     (cl-return-from minuet--filter-text nil))
-
   (when (null context)
     (cl-return-from minuet--filter-text item))
 
@@ -769,27 +768,22 @@ Returns the filtered item after trimming overlapping parts."
   (let* ((before-cursor (plist-get context :before-cursor))
          (after-cursor (plist-get context :after-cursor))
          (filtered-item item))
-
     ;; Filter against before-cursor context (trim from prefix)
-    (when (and before-cursor
-               (> minuet-before-cursor-filter-length 0))
-      (setq before-cursor (string-trim before-cursor))
-      (let* ((match (minuet-find-longest-match filtered-item before-cursor)))
-        (when (and match
-                   (not (string-empty-p match))
-                   (>= (length match) minuet-before-cursor-filter-length))
-          (setq filtered-item (substring filtered-item (length match))))))
-
+    (when-let* ((before-cursor before-cursor)
+                (should-filter (> minuet-before-cursor-filter-length 0))
+                (before-cursor (string-trim before-cursor))
+                (match (minuet-find-longest-match filtered-item before-cursor))
+                (should-filter (and (not (string-empty-p match))
+                                    (>= (length match) minuet-before-cursor-filter-length))))
+      (setq filtered-item (substring filtered-item (length match))))
     ;; Filter against after-cursor context (trim from suffix)
-    (when (and after-cursor
-               (> minuet-after-cursor-filter-length 0))
-      (setq after-cursor (string-trim after-cursor))
-      (let* ((match (minuet-find-longest-match after-cursor filtered-item)))
-        (when (and match
-                   (not (string-empty-p match))
-                   (>= (length match) minuet-after-cursor-filter-length))
-          (setq filtered-item (substring filtered-item 0 (- (length filtered-item) (length match)))))))
-
+    (when-let* ((after-cursor after-cursor)
+                (should-filter (> minuet-after-cursor-filter-length 0))
+                (after-cursor (string-trim after-cursor))
+                (match (minuet-find-longest-match after-cursor filtered-item))
+                (should-filter (and (not (string-empty-p match))
+                                    (>= (length match) minuet-after-cursor-filter-length))))
+      (setq filtered-item (substring filtered-item 0 (- (length filtered-item) (length match)))))
     filtered-item))
 
 (cl-defun minuet-find-longest-match (a b)
@@ -829,10 +823,10 @@ The filter sequence is obtained from CONTEXT."
                            (replace-regexp-in-string "^data: " "" line)
                            :object-type 'plist :array-type 'list)))
                   (text (ignore-errors
-                          (funcall get-text-fn json))))
-        (when (and (stringp text)
-                   (not (equal text "")))
-          (push text result))))
+                          (funcall get-text-fn json)))
+                  (text-not-empty (and (stringp text)
+                                       (not (string= text "")))))
+        (push text result)))
     (setq result (apply #'concat (nreverse result)))
     (if (equal result "")
         (progn
