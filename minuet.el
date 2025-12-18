@@ -539,6 +539,12 @@ Return non-nil when the completion was preserved or updated."
               (total (length suggestions))
               (index (mod (or index 0) total))
               (suggestion (nth index suggestions))
+              ;; Prepare the display text for the overlay by replacing
+              ;; empty lines with a space. This ensures that if the
+              ;; current line is an empty line, the overlay text is
+              ;; correctly positioned after the cursor, rather than
+              ;; before it.
+              (overlay-text (replace-regexp-in-string "^$" " " suggestion))
               ;; 'Display' is used when not at the end-of-line to
               ;; ensure proper overlay positioning. Other methods,
               ;; such as `after-string' or `before-string', fail to
@@ -560,12 +566,12 @@ Return non-nil when the completion was preserved or updated."
     ;; HACK: Adapted from copilot.el We add a 'cursor text property to the
     ;; first character of the suggestion to simulate the visual effect of
     ;; placing the overlay after the cursor
-    (put-text-property 0 1 'cursor t suggestion)
+    (put-text-property 0 1 'cursor t overlay-text)
     (overlay-put ov ov-method
                  (concat
                   (propertize
                    (format "%s%s"
-                           suggestion
+                           overlay-text
                            (if (= total minuet-n-completions 1) ""
                              (format " (%d/%d)" (1+ index) total)))
                    'face 'minuet-suggestion-face)
