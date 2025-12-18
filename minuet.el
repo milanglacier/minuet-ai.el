@@ -539,12 +539,18 @@ Return non-nil when the completion was preserved or updated."
               (total (length suggestions))
               (index (mod (or index 0) total))
               (suggestion (nth index suggestions))
-              ;; Prepare the display text for the overlay by replacing
-              ;; empty lines with a space. This ensures that if the
-              ;; current line is an empty line, the overlay text is
-              ;; correctly positioned after the cursor, rather than
+              ;; Adjust the suggestion text displayed in the overlay
+              ;; by replacing empty lines with a space. This ensures
+              ;; that when the current line is empty, the overlay text
+              ;; is correctly positioned after the cursor rather than
               ;; before it.
               (overlay-text (replace-regexp-in-string "^$" " " suggestion))
+              (overlay-text (propertize
+                             (format "%s%s"
+                                     overlay-text
+                                     (if (= total minuet-n-completions 1) ""
+                                       (format " (%d/%d)" (1+ index) total)))
+                             'face 'minuet-suggestion-face))
               ;; 'Display' is used when not at the end-of-line to
               ;; ensure proper overlay positioning. Other methods,
               ;; such as `after-string' or `before-string', fail to
@@ -568,14 +574,7 @@ Return non-nil when the completion was preserved or updated."
     ;; placing the overlay after the cursor
     (put-text-property 0 1 'cursor t overlay-text)
     (overlay-put ov ov-method
-                 (concat
-                  (propertize
-                   (format "%s%s"
-                           overlay-text
-                           (if (= total minuet-n-completions 1) ""
-                             (format " (%d/%d)" (1+ index) total)))
-                   'face 'minuet-suggestion-face)
-                  offset-char))
+                 (concat overlay-text offset-char))
     (overlay-put ov 'minuet t)
     (setq minuet--current-overlay ov)
     (minuet-active-mode 1)))
