@@ -583,22 +583,22 @@ Return non-nil when the completion was preserved or updated."
 (defun minuet-next-suggestion ()
   "Cycle to next suggestion."
   (interactive)
-  (if (and minuet--current-suggestions
-           minuet--current-overlay)
-      (let ((next-index (mod (1+ minuet--current-suggestion-index)
-                             (length minuet--current-suggestions))))
-        (minuet--display-suggestion minuet--current-suggestions next-index))
+  (if-let* ((suggestions minuet--current-suggestions)
+            (_ minuet--current-overlay)
+            (next-index (mod (1+ minuet--current-suggestion-index)
+                             (length suggestions))))
+      (minuet--display-suggestion suggestions next-index)
     (minuet-show-suggestion)))
 
 ;;;###autoload
 (defun minuet-previous-suggestion ()
   "Cycle to previous suggestion."
   (interactive)
-  (if (and minuet--current-suggestions
-           minuet--current-overlay)
-      (let ((prev-index (mod (1- minuet--current-suggestion-index)
-                             (length minuet--current-suggestions))))
-        (minuet--display-suggestion minuet--current-suggestions prev-index))
+  (if-let* ((suggestions minuet--current-suggestions)
+            (_ minuet--current-overlay)
+            (prev-index (mod (1- minuet--current-suggestion-index)
+                             (length suggestions))))
+      (minuet--display-suggestion suggestions prev-index)
     (minuet-show-suggestion)))
 
 ;;;###autoload
@@ -889,12 +889,11 @@ used to accumulate text output from a process.  After execution,
 (defun minuet-accept-suggestion ()
   "Accept the current overlay suggestion."
   (interactive)
-  (when (and minuet--current-suggestions
-             minuet--current-overlay)
-    (let ((suggestion (nth minuet--current-suggestion-index
-                           minuet--current-suggestions)))
-      (minuet--cleanup-suggestion)
-      (insert suggestion))))
+  (when-let* ((suggestions minuet--current-suggestions)
+              (_ minuet--current-overlay)
+              (suggestion (nth minuet--current-suggestion-index suggestions)))
+    (minuet--cleanup-suggestion)
+    (insert suggestion)))
 
 ;;;###autoload
 (defun minuet-dismiss-suggestion ()
