@@ -340,7 +340,7 @@ const processedData = transformData(rawData, {
   "Config options for Minuet Claude provider.")
 
 (defvar minuet-openai-options
-  `(:model "gpt-4.1-mini"
+  `(:model "gpt-5.4-nano"
     :api-key "OPENAI_API_KEY"
     :end-point "https://api.openai.com/v1/chat/completions"
     :system
