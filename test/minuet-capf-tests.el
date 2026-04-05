@@ -16,8 +16,12 @@
 
 (defun minuet-capf-tests--dispatch-session ()
   "Manually dispatch the current CAPF session in batch tests."
-  (when mineut-capf--session
-    (mineut-capf--dispatch-request (current-buffer) mineut-capf--session)))
+  (when minuet-capf--session
+    (minuet-capf--dispatch-request (current-buffer) minuet-capf--session)))
+
+(defun minuet-capf-tests--cache-anchors ()
+  "Return cached request anchors from newest to oldest."
+  (mapcar #'minuet-capf--cache-entry-anchor minuet-capf--cache))
 
 (ert-deftest minuet-capf-returns-point-range-and-props ()
   (with-temp-buffer
@@ -50,7 +54,7 @@
         (let* ((capf (minuet-completion-at-point))
                (table (nth 2 capf)))
           (should-not (all-completions "" table))
-          (should (eq (mineut-capf--state-status mineut-capf--session)
+          (should (eq (minuet-capf--state-status minuet-capf--session)
                       'scheduled))
           (should (= (or request-count 0) 0))
           (minuet-capf-tests--dispatch-session)
@@ -77,7 +81,7 @@
                (table (nth 2 capf)))
           (should-not (all-completions "" table))
           (should-not (all-completions "" table))
-          (should (eq (mineut-capf--state-status mineut-capf--session)
+          (should (eq (minuet-capf--state-status minuet-capf--session)
                       'scheduled))
           (should (= (or request-count 0) 0))
           (minuet-capf-tests--dispatch-session)
@@ -179,10 +183,83 @@
           (should-not (all-completions "" table))
           (minuet-capf-tests--dispatch-session)
           (minuet-capf-tests--wait)
-          (mineut-capf--flush-session)
+          (minuet-capf--flush-session)
           (funcall callback '("late"))
-          (should-not mineut-capf--session)
+          (should-not minuet-capf--session)
           (should-not (all-completions "" table)))))))
+
+(ert-deftest minuet-capf-reuses-request-cache-with-range ()
+  (with-temp-buffer
+    (let ((minuet-provider 'openai-fim-compatible)
+          (minuet-add-single-line-entry nil)
+          (minuet-capf-debounce-delay 0)
+          (minuet-capf-throttle-delay 0)
+          request-count)
+      (cl-letf (((symbol-function 'minuet--openai-fim-compatible-available-p)
+                 (lambda () t))
+                ((symbol-function 'minuet--openai-fim-compatible-complete)
+                 (lambda (_context callback)
+                   (setq request-count (1+ (or request-count 0)))
+                   (funcall callback '("alpha")))))
+        (let* ((capf-1 (minuet-completion-at-point))
+               (table-1 (nth 2 capf-1)))
+          (should-not (all-completions "" table-1))
+          (minuet-capf-tests--dispatch-session)
+          (minuet-capf-tests--wait)
+          (should (= request-count 1))
+          (should (= (length minuet-capf--cache) 1))
+          (insert "al")
+          (let* ((capf-2 (minuet-completion-at-point))
+                 (table-2 (nth 2 capf-2)))
+            (should (equal (list (nth 0 capf-2) (nth 1 capf-2))
+                           (list (point-min) (point))))
+            (should (= (length minuet-capf--cache) 1))
+            (should (equal (all-completions "al" table-2) '("alpha")))
+            (should (= request-count 1))))))))
+
+(ert-deftest minuet-capf-prunes-invalidated-cache-entries ()
+  (with-temp-buffer
+    (insert "zz")
+    (setq-local minuet-capf--cache
+                (list (minuet-capf--cache-entry-create
+                       :anchor (point-min)
+                       :candidates '("alpha"))))
+    (let ((minuet-provider 'openai-fim-compatible))
+      (cl-letf (((symbol-function 'minuet--openai-fim-compatible-available-p)
+                 (lambda () t)))
+        (let ((capf (minuet-completion-at-point)))
+          (should (equal (list (nth 0 capf) (nth 1 capf))
+                         (list (point) (point))))
+          (should-not minuet-capf--cache))))))
+
+(ert-deftest minuet-capf-prefers-newest-valid-cache-entry ()
+  (with-temp-buffer
+    (insert "al")
+    (setq-local minuet-capf--cache
+                (list (minuet-capf--cache-entry-create
+                       :anchor (1+ (point-min))
+                       :candidates '("lpha"))
+                      (minuet-capf--cache-entry-create
+                       :anchor (point-min)
+                       :candidates '("alpha"))))
+    (let ((minuet-provider 'openai-fim-compatible))
+      (cl-letf (((symbol-function 'minuet--openai-fim-compatible-available-p)
+                 (lambda () t)))
+        (let* ((capf (minuet-completion-at-point))
+               (table (nth 2 capf)))
+          (should (equal (list (nth 0 capf) (nth 1 capf))
+                         (list (1+ (point-min)) (point))))
+          (should (equal (all-completions "l" table) '("lpha"))))))))
+
+(ert-deftest minuet-capf-cache-is-capped ()
+  (with-temp-buffer
+    (dotimes (index 10)
+      (minuet-capf--store-cache
+       (+ (point-min) index)
+       (list (format "item-%s" index))))
+    (should (= (length minuet-capf--cache) minuet-capf--max-cache-size))
+    (should (equal (minuet-capf-tests--cache-anchors)
+                   '(10 9 8 7 6 5 4 3)))))
 
 (provide 'minuet-capf-tests)
 ;;; minuet-capf-tests.el ends here
