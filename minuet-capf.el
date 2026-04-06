@@ -15,6 +15,9 @@
 (require 'subr-x)
 (require 'minuet)
 
+(defvar corfu--input)
+(defvar company--capf-cache)
+
 (defcustom minuet-capf-debounce-delay 0.25
   "Idle debounce delay in seconds before sending a Minuet CAPF request."
   :type 'number
@@ -141,20 +144,31 @@
            (company--active-p)
            (minuet-capf--company-capf-backend-p))))
 
+(defun minuet-capf--flush-completion-cache ()
+  "Flush CAPF caches used by in-buffer completion frontends."
+  (when (fboundp 'completion--flush-all-sorted-completions)
+    (completion--flush-all-sorted-completions))
+  (when (boundp 'company--capf-cache)
+    (setq company--capf-cache nil)))
+
 (defun minuet-capf--refresh-frontends ()
   "Refresh Corfu/Company popups if one is active."
+  (minuet-capf--flush-completion-cache)
   (when (and (bound-and-true-p completion-in-region-mode)
              (or (not (boundp 'corfu-mode))
                  (bound-and-true-p corfu-mode)))
     (cond
-     ((fboundp 'corfu--update)
-      (ignore-errors
-        (corfu--update)
-        (when (fboundp 'corfu--exhibit)
-          (corfu--exhibit))))
      ((fboundp 'corfu--exhibit)
       (ignore-errors
-        (corfu--exhibit)))))
+        ;; `corfu--update' is a no-op when `corfu--input' still matches the
+        ;; current text, which is exactly the case for async candidate
+        ;; arrivals.  Reset it first so `corfu--exhibit' recomputes.
+        (let ((corfu--input nil))
+          (corfu--exhibit))))
+     ((fboundp 'corfu--update)
+      (ignore-errors
+        (let ((corfu--input nil))
+          (corfu--update))))))
   (when (and (fboundp 'company--active-p)
              (company--active-p)
              (minuet-capf--company-capf-backend-p)

@@ -7,6 +7,9 @@
 (require 'minuet-capf)
 
 (defvar company-backend nil)
+(defvar company--capf-cache nil)
+(defvar completion-all-sorted-completions nil)
+(defvar corfu--input nil)
 
 (defun minuet-capf-tests--wait (&optional seconds)
   "Wait SECONDS while allowing timers to run."
@@ -146,6 +149,7 @@
           (minuet-capf-debounce-delay 0)
           (minuet-capf-throttle-delay 0)
           (company-backend 'company-capf)
+          (company--capf-cache 'stale)
           callback
           refreshed)
       (cl-letf (((symbol-function 'minuet--openai-fim-compatible-available-p)
@@ -165,7 +169,25 @@
           (minuet-capf-tests--wait)
           (funcall callback '("alpha"))
           (should refreshed)
+          (should-not company--capf-cache)
           (should (equal (all-completions "" table) '("alpha"))))))))
+
+(ert-deftest minuet-capf-corfu-refresh-invalidates-stale-input-and-cache ()
+  (with-temp-buffer
+    (let ((completion-in-region-mode t)
+          (corfu-mode t)
+          (corfu--input '("foo" . 3))
+          (completion-all-sorted-completions '("stale"))
+          seen-input
+          seen-cache)
+      (cl-letf (((symbol-function 'corfu--exhibit)
+                 (lambda ()
+                   (setq seen-input corfu--input
+                         seen-cache completion-all-sorted-completions))))
+        (minuet-capf--refresh-frontends)
+        (should-not seen-input)
+        (should-not seen-cache)
+        (should-not completion-all-sorted-completions)))))
 
 (ert-deftest minuet-capf-stale-callback-is-ignored-after-flush ()
   (with-temp-buffer
