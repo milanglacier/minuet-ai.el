@@ -613,7 +613,7 @@ CURSOR-CHAR is the cursor glyph string."
   (when-let* ((c minuet-duet--proposed-cursor)
               (proposed-row (plist-get c :row-offset))
               ;; Bail out if cursor row falls inside any hunk
-              (_not-in-hunk
+              (not-in-hunk
                (not (cl-loop for h in hunks
                              for ps = (plist-get h :proposed-start)
                              for pc = (plist-get h :proposed-count)
