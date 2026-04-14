@@ -234,7 +234,8 @@
       (should (= (overlay-start ov) line-2-start))
       (should (= (overlay-end ov) line-2-start))
       (should (overlay-get ov 'before-string))
-      (should-not (overlay-get ov 'after-string)))))
+      (should-not (overlay-get ov 'after-string)))
+    (should minuet-duet-active-mode)))
 
 (ert-deftest minuet-duet-render-preview-pure-insertion-at-end ()
   "Pure insertions at the end render after the last original line."
@@ -271,6 +272,30 @@
                 "result[\"diff\"] = result[\"max\"] - result[\"first\"]\n    return result[\"diff\"]")
                after)))))
 
+(ert-deftest minuet-duet-render-preview-with-cursor-only-activates-mode ()
+  "Cursor-only previews activate the duet keymap."
+  (with-temp-buffer
+    (insert "a\nb")
+    (setq minuet-duet--region-start (point-min)
+          minuet-duet--original-lines '("a" "b")
+          minuet-duet--proposed-lines '("a" "b")
+          minuet-duet--proposed-cursor '(:row-offset 1 :col 1))
+    (minuet-duet--render-preview)
+    (should (= (length minuet-duet--overlays) 1))
+    (should minuet-duet-active-mode)))
+
+(ert-deftest minuet-duet-render-preview-without-visible-preview-keeps-mode-off ()
+  "No hunks and no cursor leave the duet keymap inactive."
+  (with-temp-buffer
+    (insert "a\nb")
+    (setq minuet-duet--region-start (point-min)
+          minuet-duet--original-lines '("a" "b")
+          minuet-duet--proposed-lines '("a" "b")
+          minuet-duet--proposed-cursor nil)
+    (minuet-duet--render-preview)
+    (should (null minuet-duet--overlays))
+    (should-not minuet-duet-active-mode)))
+
 (ert-deftest minuet-duet-apply-replaces-region ()
   "Apply replaces only the editable region."
   (with-temp-buffer
@@ -287,11 +312,13 @@
                                     (line-end-position))
           minuet-duet--original-lines '("old1" "old2")
           minuet-duet--proposed-lines '("new1" "new2" "new3")
-          minuet-duet--proposed-cursor '(:row-offset 1 :col 3))
+          minuet-duet--proposed-cursor '(:row-offset 1 :col 3)
+          minuet-duet-active-mode t)
     (minuet-duet-apply)
     (should (string= (buffer-string) "before\nnew1\nnew2\nnew3\nafter"))
     ;; State should be cleared
-    (should (null minuet-duet--proposed-lines))))
+    (should (null minuet-duet--proposed-lines))
+    (should-not minuet-duet-active-mode)))
 
 (ert-deftest minuet-duet-apply-cursor-position ()
   "Point is at predicted cursor offset after apply."
@@ -339,11 +366,13 @@
     (insert "test")
     (setq minuet-duet--proposed-lines '("foo")
           minuet-duet--proposed-cursor '(:row-offset 0 :col 0)
-          minuet-duet--overlays (list (make-overlay 1 2)))
+          minuet-duet--overlays (list (make-overlay 1 2))
+          minuet-duet-active-mode t)
     (minuet-duet-dismiss)
     (should (null minuet-duet--proposed-lines))
     (should (null minuet-duet--proposed-cursor))
-    (should (null minuet-duet--overlays))))
+    (should (null minuet-duet--overlays))
+    (should-not minuet-duet-active-mode)))
 
 (ert-deftest minuet-duet-visible-p-with-overlays ()
   "visible-p returns non-nil when overlays exist."

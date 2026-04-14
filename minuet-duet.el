@@ -78,6 +78,17 @@
   "Character used to render the predicted cursor position."
   :type 'string)
 
+;;;###autoload
+(defvar minuet-duet-active-mode-map
+  (let ((map (make-sparse-keymap))) map)
+  "Keymap used when `minuet-duet-active-mode' is enabled.")
+
+;;;###autoload
+(define-minor-mode minuet-duet-active-mode
+  "Activated when there is an active duet preview in Minuet."
+  :init-value nil
+  :keymap minuet-duet-active-mode-map)
+
 ;; Faces
 
 (defface minuet-duet-add-face
@@ -646,7 +657,8 @@ CURSOR-CHAR is the cursor glyph string."
       (unless minuet-duet--proposed-cursor
         (minuet--log "Minuet duet predicts no text changes."
                      minuet-show-error-message-on-minibuffer)))
-    (minuet-duet--render-cursor-on-unchanged-line hunks cursor-char)))
+    (minuet-duet--render-cursor-on-unchanged-line hunks cursor-char)
+    (minuet-duet-active-mode (if (minuet-duet-visible-p) 1 -1))))
 
 ;;;;;
 ;; After-change hook
@@ -685,6 +697,7 @@ CURSOR-CHAR is the cursor glyph string."
   (minuet-duet--cancel-request)
   (minuet-duet--clear-overlays)
   (minuet-duet--remove-after-change-hook)
+  (minuet-duet-active-mode -1)
   (setq minuet-duet--pending-seq nil
         minuet-duet--modified-tick nil
         minuet-duet--region-start nil
@@ -943,6 +956,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
     ;; Move point to predicted cursor
     (goto-char (+ region-start cursor-offset))
     ;; Reset state
+    (minuet-duet-active-mode -1)
     (setq minuet-duet--pending-seq nil
           minuet-duet--modified-tick nil
           minuet-duet--region-start nil
