@@ -303,15 +303,14 @@ significantly slow down the default provider used by Minuet
 (`openai-fim-compatible` with deepseek). We recommend trying alternative
 providers instead.
 
-We **do not** recommend using thinking models, as this mode
-significantly increases latency—even with the fastest models. However,
-if you choose to use thinking models, please ensure that their
-thinking capabilities are disabled.  Refer to the following examples
-for guidance on how to disable the thinking feature.
+We **do not** recommend using thinking models, as this mode significantly
+increases latency—even with the fastest models. However, if you choose to use
+thinking models, please ensure that their thinking capabilities are disabled.
+Refer to the following examples for guidance on how to disable the thinking
+feature.
 
-Note: You can review the buffer contents in `*minuet*` to identify any
-errors returned by the provider in case of misconfiguration in your
-options.
+Note: You can review the buffer contents in `*minuet*` to identify any errors
+returned by the provider in case of misconfiguration in your options.
 
 ## Understanding Model Speed
 
@@ -476,7 +475,10 @@ Basic usage is manual. Bind the duet commands to your preferred keymaps, then:
 Example config:
 
 ```elisp
-(use-package minuet
+;; minuet and minuet-duet is two separate module
+;; It is recommended to load them separately.
+
+(use-package minuet-duet
   :bind
   ;; Global keymap to trigger duet prediction
   (("C-c d" . #'minuet-duet-predict)
@@ -496,7 +498,8 @@ Example config:
 This feature is highly experimental:
 
 - It only targets general-purpose LLMs rather than NES-specialized models, as I
-  lack local GPU resources for testing.
+  lack local GPU resources for testing. Currently, `gemini-3-flash-preview`
+  performs well with the prompt structure.
 - Comparable small models from competitors of Google—`claude-haiku-4.5` and
   `gpt-5.4-mini`—perform poorly.
 - Given completion latency constraints, automatic duet prediction is not
@@ -544,11 +547,10 @@ request, you can use function `minuet-set-optional-options`:
 (minuet-set-optional-options minuet-openai-options :top_p 0.9)
 ```
 
-`:transform` is a list of functions that receive a plist with
-`:end-point`, `:headers`, and `:body` and return a modified plist (or
-nil to keep it unchanged). The transformed values are used for the
-actual request, so this is the right place to tweak custom headers,
-payloads, or endpoints.
+`:transform` is a list of functions that receive a plist with `:end-point`,
+`:headers`, and `:body` and return a modified plist (or nil to keep it
+unchanged). The transformed values are used for the actual request, so this is
+the right place to tweak custom headers, payloads, or endpoints.
 
 ## OpenAI
 
@@ -592,8 +594,8 @@ Note: If you intend to use GPT-5 series models (e.g., `gpt-5-mini` or
 
 1. Use `max_completion_tokens` instead of `max_tokens`.
 2. These models do not support `top_p` or `temperature` adjustments.
-3. Disable thinking by setting `reasoning_effort` to `none`, or use `minimal`
-   if your chosen model does not support `none`.
+3. Disable thinking by setting `reasoning_effort` to `none`, or use `minimal` if
+   your chosen model does not support `none`.
 
 </details>
 
