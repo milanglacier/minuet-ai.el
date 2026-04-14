@@ -758,11 +758,15 @@ CALLBACK receives the full response text or nil."
                   (funcall callback nil))))))))
 
 (defun minuet-duet--openai-complete (context callback)
-  "Send a duet request using OpenAI."
+  "Send a duet request using OpenAI.
+CONTEXT is the chat context from `minuet-duet--build-context'.
+CALLBACK is a function that receives the full response text or nil."
   (minuet-duet--openai-complete-base minuet-duet-openai-options context callback))
 
 (defun minuet-duet--openai-compatible-complete (context callback)
-  "Send a duet request using an OpenAI-compatible API."
+  "Send a duet request using an OpenAI-compatible API.
+CONTEXT is the chat context from `minuet-duet--build-context'.
+CALLBACK is a function that receives the full response text or nil."
   (minuet-duet--openai-complete-base minuet-duet-openai-compatible-options
                                      context callback))
 
