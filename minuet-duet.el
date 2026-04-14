@@ -745,6 +745,15 @@ CALLBACK receives the full response text or nil."
                   (minuet--log err)
                   (funcall callback nil))))))))
 
+(defun minuet-duet--openai-complete (context callback)
+  "Send a duet request using OpenAI."
+  (minuet-duet--openai-complete-base minuet-duet-openai-options context callback))
+
+(defun minuet-duet--openai-compatible-complete (context callback)
+  "Send a duet request using an OpenAI-compatible API."
+  (minuet-duet--openai-complete-base minuet-duet-openai-compatible-options
+                                     context callback))
+
 (cl-defun minuet-duet--claude-complete (context callback)
   "Send a duet request using Claude API.
 CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
@@ -866,20 +875,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
   (let* ((context (minuet-duet--build-context))
          (buffer (current-buffer))
          (provider minuet-duet-provider)
-         (complete-fn (pcase provider
-                        ('openai
-                         (lambda (ctx cb)
-                           (minuet-duet--openai-complete-base minuet-duet-openai-options ctx cb)))
-                        ('openai-compatible
-                         (lambda (ctx cb)
-                           (minuet-duet--openai-complete-base minuet-duet-openai-compatible-options ctx cb)))
-                        ('claude #'minuet-duet--claude-complete)
-                        ('gemini #'minuet-duet--gemini-complete)
-                        (_ (minuet--log (format "Minuet duet provider not supported: %s" provider)
-                                        t)
-                           nil))))
-    (unless complete-fn
-      (cl-return-from minuet-duet-predict))
+         (complete-fn (intern (format "minuet-duet--%s-complete" provider))))
     (cl-incf minuet-duet--request-seq)
     (let ((seq minuet-duet--request-seq))
       (setq minuet-duet--pending-seq seq)
