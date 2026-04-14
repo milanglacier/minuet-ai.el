@@ -150,5 +150,44 @@
      (:original-start 4 :original-count 1
       :proposed-start 4 :proposed-count 1))))
 
+(ert-deftest minuet-diff-large-real-world-data ()
+  "Diffing 50 lines of 80 characters each produces correct hunks."
+  (let* ((line-length 80)
+         (num-lines 50)
+         ;; Generate original: 50 lines of ~80 chars each
+         (original (cl-loop for i from 1 to num-lines
+                            collect (format "Line %02d: %s" i
+                                            (make-string (- line-length 8) ?x))))
+         ;; Proposed: modified version with replacements and a deletion.
+         (proposed (cl-loop for i from 1 to num-lines
+                            collect
+                            (cond
+                             ;; Lines 10-12: replace with 3 new lines.
+                             ((= i 10) "INSERTED LINE 10a: extra content here for the test scenario")
+                             ((= i 11) "INSERTED LINE 10b: more content filling up the line length now")
+                             ((= i 12) "INSERTED LINE 10c: final insertion in this hunk area here")
+                             ;; Line 25: deleted (skip in proposed)
+                             ((= i 25) nil)
+                             ;; Line 40: single line replacement
+                             ((= i 40) "REPLACED LINE 40: this line was replaced with new content")
+                             ;; Keep other lines unchanged
+                             (t (format "Line %02d: %s" i
+                                        (make-string (- line-length 8) ?x)))))))
+    ;; Filter out nil values (deleted line)
+    (setq proposed (cl-remove-if #'null proposed))
+    ;; Expected hunks:
+    ;; 1. Lines 10-12 (1-based): replace 3 lines with 3 (at position 9 in both)
+    ;; 2. Line 25: delete 1 line (at position 24 in both sequences)
+    ;; 3. Line 40: replace 1 line (at position 39 in original, 38 in proposed)
+    (minuet-diff-test--should-equal-hunks
+     original
+     proposed
+     '((:original-start 9 :original-count 3
+        :proposed-start 9 :proposed-count 3)
+       (:original-start 24 :original-count 1
+        :proposed-start 24 :proposed-count 0)
+       (:original-start 39 :original-count 1
+        :proposed-start 38 :proposed-count 1)))))
+
 (provide 'minuet-diff-tests)
 ;;; minuet-diff-tests.el ends here
