@@ -8,12 +8,10 @@
 ;;; Code:
 
 (require 'ert)
-
-(let ((project-dir (file-name-directory
-                    (directory-file-name
-                     (file-name-directory
-                      (or load-file-name (buffer-file-name)))))))
-  (add-to-list 'load-path project-dir))
+(load (expand-file-name "test-helper"
+                        (file-name-directory
+                         (or load-file-name (buffer-file-name))))
+      nil t)
 
 (require 'minuet)
 (require 'minuet-diff)
