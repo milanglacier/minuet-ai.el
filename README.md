@@ -22,6 +22,8 @@
   - [minuet-auto-suggestion-block-predicates](#minuet-auto-suggestion-block-predicates)
   - [minuet-auto-suggestion-debounce-delay](#minuet-auto-suggestion-debounce-delay)
   - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
+- [Duet (Next Edit Prediction)](#duet-next-edit-prediction)
+  - [TODO](#todo)
 - [Provider Options](#provider-options)
   - [OpenAI](#openai)
   - [Claude](#claude)
