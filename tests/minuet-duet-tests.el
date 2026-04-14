@@ -15,30 +15,8 @@
                       (or load-file-name (buffer-file-name)))))))
   (add-to-list 'load-path project-dir))
 
+(require 'minuet)
 (require 'minuet-diff)
-
-;; Stub out minuet helpers needed by minuet-duet at load time
-(unless (featurep 'minuet)
-  (defvar minuet-show-error-message-on-minibuffer nil)
-  (defun minuet--eval-value (value)
-    (cond ((functionp value) (funcall value))
-          ((and (symbolp value) (boundp value)) (symbol-value value))
-          (t value)))
-  (defun minuet--get-api-key (_key) "fake-key")
-  (defun minuet--log (msg &optional _msg-p)
-    (message "minuet-log: %s" msg) nil)
-  (defun minuet--stream-decode (_r _fn) nil)
-  (defun minuet--stream-decode-raw (_r _fn) nil)
-  (defun minuet--apply-request-transform (_o ep hdr body)
-    (list :end-point ep :headers hdr :body body))
-  (defun minuet--openai-get-text-fn (_j) nil)
-  (defun minuet--claude-get-text-fn (_j) nil)
-  (defun minuet--gemini-get-text-fn (_j) nil)
-  (defun minuet--transform-openai-chat-to-gemini-chat (chat) chat)
-  (defmacro minuet--make-process-stream-filter (_r) '(lambda (_p _t) nil))
-  (defmacro minuet--with-temp-response (&rest body)
-    (declare (indent 0)) `(let (--response--) ,@body))
-  (provide 'minuet))
 
 (require 'minuet-duet)
 
