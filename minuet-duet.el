@@ -324,9 +324,7 @@ TEMPLATE must be a plist with :template plus replacement keys."
 
 (defun minuet-duet--make-chat-input (context chat-input)
   "Build the user chat input string from CONTEXT and CHAT-INPUT spec."
-  (let* ((resolved (minuet--eval-value chat-input))
-         (template (if (stringp resolved) resolved
-                     (minuet--eval-value (plist-get resolved :template)))))
+  (let* ((template (minuet--eval-value (plist-get chat-input :template))))
     (when (not (stringp template))
       (setq template ""))
     (setq template (replace-regexp-in-string
