@@ -99,6 +99,26 @@
 ;; Context extraction tests
 ;; =====================================================================
 
+(ert-deftest minuet-duet-make-system-prompt-default-template ()
+  "Default duet system template expands configured prompt fragments."
+  (let ((result (minuet-duet--make-system-prompt minuet-duet-default-system)))
+    (should (string-match-p "You are an AI editing engine" result))
+    (should (string-match-p "Guidelines:" result))
+    (should (string-match-p
+             (regexp-quote minuet-duet-editable-region-start-marker)
+             result))
+    (should (string-match-p
+             (regexp-quote minuet-duet-cursor-position-marker)
+             result))))
+
+(ert-deftest minuet-duet-make-system-prompt-literal-walk ()
+  "System prompt placeholders are resolved from the template itself."
+  (let* ((template '(:template "A {{{:first}}} B {{{:missing}}} C {{{:first}}}"
+                    :first "value"
+                    :unused "unused {{{:first}}}"))
+         (result (minuet-duet--make-system-prompt template)))
+    (should (equal result "A value B  C value"))))
+
 (ert-deftest minuet-duet-make-chat-input-default-template ()
   "Default duet chat input expands dynamic placeholders from CONTEXT."
   (let* ((context '(:non-editable-region-before "before\n"
