@@ -102,13 +102,13 @@
 (defun minuet-duet--render-markers (text)
   "Replace marker placeholders in TEXT with configured marker strings."
   (setq text (replace-regexp-in-string
-              (regexp-quote "{{{editable_region_start}}}")
+              (regexp-quote "{{{:editable_region_start}}}")
               minuet-duet-editable-region-start-marker text t t))
   (setq text (replace-regexp-in-string
-              (regexp-quote "{{{editable_region_end}}}")
+              (regexp-quote "{{{:editable_region_end}}}")
               minuet-duet-editable-region-end-marker text t t))
   (setq text (replace-regexp-in-string
-              (regexp-quote "{{{cursor_position}}}")
+              (regexp-quote "{{{:cursor_position}}}")
               minuet-duet-cursor-position-marker text t t))
   text)
 
@@ -118,15 +118,15 @@
    "You are an AI editing engine that rewrites only the editable region in a document.
 
 Input markers:
-- `{{{editable_region_start}}}` and `{{{editable_region_end}}}` wrap the editable region.
-- `{{{cursor_position}}}` marks the current cursor position inside that editable region."))
+- `{{{:editable_region_start}}}` and `{{{:editable_region_end}}}` wrap the editable region.
+- `{{{:cursor_position}}}` marks the current cursor position inside that editable region."))
 
 (defun minuet-duet--default-guidelines ()
   "Build the default duet guidelines."
   (minuet-duet--render-markers
    "Guidelines:
-1. Return only the rewritten editable region, wrapped in `{{{editable_region_start}}}` and `{{{editable_region_end}}}`.
-2. Include exactly one `{{{cursor_position}}}` marker inside the rewritten editable region.
+1. Return only the rewritten editable region, wrapped in `{{{:editable_region_start}}}` and `{{{:editable_region_end}}}`.
+2. Include exactly one `{{{:cursor_position}}}` marker inside the rewritten editable region.
 3. Preserve indentation, formatting, blank lines, and surrounding syntax conventions. Keep the exact number of empty lines unless you are intentionally changing them.
 4. For any text or code inside the editable region that is not intended to change, copy it verbatim. Do not paraphrase, refactor, reformat, or otherwise alter unchanged content.
 5. Make only the smallest changes necessary to satisfy the requested edit.
@@ -146,11 +146,11 @@ Input markers:
 (defun minuet-duet--default-chat-input-template ()
   "Build the default chat input template with rendered markers."
   (minuet-duet--render-markers
-   "{{{non_editable_region_before}}}
-{{{editable_region_start}}}
-{{{editable_region_before_cursor}}}{{{cursor_position}}}{{{editable_region_after_cursor}}}
-{{{editable_region_end}}}
-{{{non_editable_region_after}}}"))
+   "{{{:non_editable_region_before}}}
+{{{:editable_region_start}}}
+{{{:editable_region_before_cursor}}}{{{:cursor_position}}}{{{:editable_region_after_cursor}}}
+{{{:editable_region_end}}}
+{{{:non_editable_region_after}}}"))
 
 (defvar minuet-duet-default-chat-input
   '(:template minuet-duet--default-chat-input-template)
@@ -171,7 +171,7 @@ Input markers:
 async function buildRequest(user: User, overrides: Record<string, any> = {}) {
     const baseHeaders = { 'content-type': 'application/json' };
 
-{{{editable_region_start}}}
+{{{:editable_region_start}}}
     const payload = {
         id: user.id,
         name: user.name,
@@ -180,9 +180,9 @@ async function buildRequest(user: User, overrides: Record<string, any> = {}) {
     return {
         method: 'POST',
         headers: baseHeaders,
-        body: JSON.stringify(payload{{{cursor_position}}}),
+        body: JSON.stringify(payload{{{:cursor_position}}}),
     };
-{{{editable_region_end}}}
+{{{:editable_region_end}}}
 }
 
 export async function sendUser(user: User, overrides = {}) {
@@ -191,7 +191,7 @@ export async function sendUser(user: User, overrides = {}) {
 }"))
    (list :role "assistant"
          :content (minuet-duet--render-markers
-                   "{{{editable_region_start}}}
+                   "{{{:editable_region_start}}}
     const payload = {
         id: user.id,
         name: user.name,
@@ -207,9 +207,9 @@ export async function sendUser(user: User, overrides = {}) {
         },
         body: JSON.stringify(payload),
         signal: overrides.signal,
-        keepalive: overrides.keepalive ?? false,{{{cursor_position}}}
+        keepalive: overrides.keepalive ?? false,{{{:cursor_position}}}
     };
-{{{editable_region_end}}}"))))
+{{{:editable_region_end}}}"))))
 
 ;; ======================================================================
 ;; Provider option variables
@@ -332,19 +332,19 @@ TEMPLATE may be a string (returned as-is) or a plist with
     (when (not (stringp template))
       (setq template ""))
     (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{non_editable_region_before}}}")
+                    (regexp-quote "{{{:non_editable_region_before}}}")
                     (plist-get context :non-editable-region-before)
                     template t t))
     (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{editable_region_before_cursor}}}")
+                    (regexp-quote "{{{:editable_region_before_cursor}}}")
                     (plist-get context :editable-region-before-cursor)
                     template t t))
     (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{editable_region_after_cursor}}}")
+                    (regexp-quote "{{{:editable_region_after_cursor}}}")
                     (plist-get context :editable-region-after-cursor)
                     template t t))
     (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{non_editable_region_after}}}")
+                    (regexp-quote "{{{:non_editable_region_after}}}")
                     (plist-get context :non-editable-region-after)
                     template t t))
     ;; Clean up unresolved placeholders
