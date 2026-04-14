@@ -25,12 +25,6 @@
 ;;; Commentary:
 
 ;; Next-edit prediction (NES / duet) module for minuet-ai.
-;; Sends the editable region around point to an LLM and previews the
-;; proposed rewrite as inline overlays.
-;;
-;; This module depends on `minuet' for shared helpers but keeps all
-;; duet state, prompts, backends, preview rendering, and commands
-;; separate from the existing FIM completion path.
 
 ;;; Code:
 
@@ -54,60 +48,52 @@
   :type '(choice (const :tag "OpenAI" openai)
                  (const :tag "Claude" claude)
                  (const :tag "Gemini" gemini)
-                 (const :tag "OpenAI Compatible" openai-compatible))
-  :group 'minuet-duet)
+                 (const :tag "OpenAI Compatible" openai-compatible)))
 
 (defcustom minuet-duet-request-timeout 15
   "Maximum timeout in seconds for duet requests."
-  :type 'integer
-  :group 'minuet-duet)
+  :type 'integer)
 
 (defcustom minuet-duet-editable-region-lines-before 8
   "Number of lines before point to include in the editable region."
-  :type 'integer
-  :group 'minuet-duet)
+  :type 'integer)
 
 (defcustom minuet-duet-editable-region-lines-after 15
   "Number of lines after point to include in the editable region."
-  :type 'integer
-  :group 'minuet-duet)
+  :type 'integer)
 
 (defcustom minuet-duet-editable-region-start-marker "<editable_region_start>"
   "Marker indicating the start of the editable region."
-  :type 'string
-  :group 'minuet-duet)
+  :type 'string)
 
 (defcustom minuet-duet-editable-region-end-marker "<editable_region_end>"
   "Marker indicating the end of the editable region."
-  :type 'string
-  :group 'minuet-duet)
+  :type 'string)
 
 (defcustom minuet-duet-cursor-position-marker "<cursor_position>"
   "Marker indicating the cursor position."
-  :type 'string
-  :group 'minuet-duet)
+  :type 'string)
 
 (defcustom minuet-duet-preview-cursor "\xf246"
   "Character used to render the predicted cursor position."
-  :type 'string
-  :group 'minuet-duet)
+  :type 'string)
 
 ;; Faces -----------------------------------------------------------------
 
 (defface minuet-duet-add-face
   '((t :inherit diff-added))
   "Face for proposed (added) lines in duet preview."
-  :group 'minuet-duet)
+  )
 
 (defface minuet-duet-delete-face
   '((t :inherit diff-removed))
   "Face for lines to be deleted in duet preview."
-  :group 'minuet-duet)
+  )
 
 (defface minuet-duet-cursor-face
   '((t :inherit isearch))
   "Face for the predicted cursor glyph in duet preview."
-  :group 'minuet-duet)
+  )
 
 ;; ======================================================================
 ;; Default prompts & templates
