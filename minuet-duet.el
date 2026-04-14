@@ -937,9 +937,8 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
     (minuet-duet--remove-after-change-hook)
     (minuet-duet--clear-overlays)
     ;; Replace text
-    (goto-char region-start)
-    (delete-region region-start region-end)
-    (insert new-text)
+    (replace-region-contents region-start region-end
+                             (lambda () new-text))
     ;; Move point to predicted cursor
     (goto-char (+ region-start cursor-offset))
     ;; Reset state
