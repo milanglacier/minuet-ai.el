@@ -309,8 +309,8 @@ export async function sendUser(user: User, overrides = {}) {
 (defvar-local minuet-duet--overlays nil
   "List of active duet preview overlays in this buffer.")
 
-(defvar-local minuet-duet--modified-tick nil
-  "Buffer `buffer-modified-tick' when the current preview was computed.")
+(defvar-local minuet-duet--chars-modified-tick nil
+  "Buffer `buffer-chars-modified-tick' when the current preview was computed.")
 
 (defvar-local minuet-duet--region-start nil
   "Buffer position of the editable region start.")
@@ -387,7 +387,7 @@ TEMPLATE must be a plist with :template plus replacement keys."
 (defun minuet-duet--build-context ()
   "Build duet context plist from the current buffer and point.
 Returns a plist with:
-  :modified-tick
+  :chars-modified-tick
   :non-editable-region-before
   :editable-region-before-cursor
   :editable-region-after-cursor
@@ -422,7 +422,7 @@ Returns a plist with:
          ;; Original lines in editable region
          (editable-text (buffer-substring-no-properties region-start region-end))
          (original-lines (split-string editable-text "\n")))
-    (list :modified-tick (buffer-modified-tick)
+    (list :chars-modified-tick (buffer-chars-modified-tick)
           :non-editable-region-before non-editable-before
           :editable-region-before-cursor editable-before-cursor
           :editable-region-after-cursor editable-after-cursor
@@ -699,7 +699,7 @@ CURSOR-CHAR is the cursor glyph string."
   (minuet-duet--remove-after-change-hook)
   (minuet-duet-active-mode -1)
   (setq minuet-duet--pending-seq nil
-        minuet-duet--modified-tick nil
+        minuet-duet--chars-modified-tick nil
         minuet-duet--region-start nil
         minuet-duet--region-end nil
         minuet-duet--original-lines nil
@@ -890,7 +890,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
          (buffer (current-buffer))
          (provider minuet-duet-provider)
          (complete-fn (intern (format "minuet-duet--%s-complete" provider)))
-         (modified-tick (plist-get context :modified-tick))
+         (chars-modified-tick (plist-get context :chars-modified-tick))
          (region-start (plist-get context :region-start))
          (region-end (plist-get context :region-end))
          (original-lines (plist-get context :original-lines))
@@ -906,13 +906,13 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
            (when (eq minuet-duet--pending-seq seq)
              (setq minuet-duet--pending-seq nil)
              (cond
-              ((not text) nil)
-              ((/= (buffer-modified-tick) modified-tick)
+             ((not text) nil)
+              ((/= (buffer-chars-modified-tick) chars-modified-tick)
                (minuet--log "Minuet duet: result arrived after buffer changed; discarded."))
               (t
                (if-let* ((parsed (minuet-duet--parse-response text)))
                    (progn
-                     (setq minuet-duet--modified-tick modified-tick
+                     (setq minuet-duet--chars-modified-tick chars-modified-tick
                            minuet-duet--region-start region-start
                            minuet-duet--region-end region-end
                            minuet-duet--original-lines original-lines
@@ -932,7 +932,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
                minuet-duet--proposed-cursor)
     (minuet--log "No Minuet duet prediction to apply." t)
     (cl-return-from minuet-duet-apply))
-  (unless (= (buffer-modified-tick) minuet-duet--modified-tick)
+  (unless (= (buffer-chars-modified-tick) minuet-duet--chars-modified-tick)
     (minuet-duet--clear-state)
     (minuet--log "Minuet duet prediction is stale and has been discarded." t)
     (cl-return-from minuet-duet-apply))
@@ -958,7 +958,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
     ;; Reset state
     (minuet-duet-active-mode -1)
     (setq minuet-duet--pending-seq nil
-          minuet-duet--modified-tick nil
+          minuet-duet--chars-modified-tick nil
           minuet-duet--region-start nil
           minuet-duet--region-end nil
           minuet-duet--original-lines nil

@@ -159,6 +159,7 @@
   "Context from an empty buffer."
   (with-temp-buffer
     (let ((ctx (minuet-duet--build-context)))
+      (should (integerp (plist-get ctx :chars-modified-tick)))
       (should (stringp (plist-get ctx :non-editable-region-before)))
       (should (stringp (plist-get ctx :editable-region-before-cursor)))
       (should (stringp (plist-get ctx :editable-region-after-cursor)))
@@ -301,7 +302,7 @@
   (with-temp-buffer
     (insert "before\nold1\nold2\nafter")
     ;; Simulate a prediction that was already parsed
-    (setq minuet-duet--modified-tick (buffer-modified-tick)
+    (setq minuet-duet--chars-modified-tick (buffer-chars-modified-tick)
           minuet-duet--region-start (save-excursion
                                       (goto-char (point-min))
                                       (forward-line 1)
@@ -324,7 +325,7 @@
   "Point is at predicted cursor offset after apply."
   (with-temp-buffer
     (insert "aaa\nbbb\nccc")
-    (setq minuet-duet--modified-tick (buffer-modified-tick)
+    (setq minuet-duet--chars-modified-tick (buffer-chars-modified-tick)
           minuet-duet--region-start (save-excursion
                                       (goto-char (point-min))
                                       (forward-line 1)
@@ -345,7 +346,7 @@
   "Apply rejects stale prediction when buffer was modified."
   (with-temp-buffer
     (insert "original")
-    (setq minuet-duet--modified-tick (buffer-modified-tick)
+    (setq minuet-duet--chars-modified-tick (buffer-chars-modified-tick)
           minuet-duet--region-start (point-min)
           minuet-duet--region-end (point-max)
           minuet-duet--original-lines '("original")
@@ -359,6 +360,29 @@
     (should (string= (buffer-string) "original!"))
     ;; State should be cleared
     (should (null minuet-duet--proposed-lines))))
+
+(ert-deftest minuet-duet-predict-ignores-property-only-buffer-changes ()
+  "Property-only buffer churn does not stale the first duet response."
+  (with-temp-buffer
+    (insert "const value = 1;")
+    (let ((callback nil)
+          (response (concat minuet-duet-editable-region-start-marker "\n"
+                            "const value = 2;"
+                            minuet-duet-cursor-position-marker
+                            "\n"
+                            minuet-duet-editable-region-end-marker)))
+      (cl-letf (((symbol-function 'minuet-duet--gemini-complete)
+                 (lambda (_context cb)
+                   (setq callback cb))))
+        (let ((minuet-duet-provider 'gemini))
+          (minuet-duet-predict)))
+      (should callback)
+      ;; Simulate cold-start fontification/property setup without editing text.
+      (with-silent-modifications
+        (put-text-property (point-min) (point-max) 'fontified t))
+      (funcall callback response)
+      (should (equal minuet-duet--proposed-lines '("const value = 2;")))
+      (should (minuet-duet-visible-p)))))
 
 (ert-deftest minuet-duet-dismiss-clears-state ()
   "Dismiss clears all overlays and state."
