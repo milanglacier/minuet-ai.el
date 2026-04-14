@@ -92,7 +92,7 @@
 ;; Faces
 
 (defface minuet-duet-add-face
-  '((t :inherit diff-added))
+  '((t :inherit diff-refine-added))
   "Face for proposed (added) lines in duet preview."
   )
 
