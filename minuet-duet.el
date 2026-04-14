@@ -1,0 +1,946 @@
+;;; minuet-duet.el --- Next-edit prediction for minuet -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2025 Free Software Foundation, Inc.
+
+;; Author: Milan Glacier <dev@milanglacier.com>
+;; Maintainer: Milan Glacier <dev@milanglacier.com>
+
+;; This file is part of GNU Emacs
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 3, or (at your option)
+;; any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth
+;; Floor, Boston, MA 02110-1301, USA.
+
+;;; Commentary:
+
+;; Next-edit prediction (NES / duet) module for minuet-ai.
+;; Sends the editable region around point to an LLM and previews the
+;; proposed rewrite as inline overlays.
+;;
+;; This module depends on `minuet' for shared helpers but keeps all
+;; duet state, prompts, backends, preview rendering, and commands
+;; separate from the existing FIM completion path.
+
+;;; Code:
+
+(require 'cl-lib)
+(require 'plz)
+(require 'dash)
+(require 'minuet-diff)
+
+(require 'minuet)
+
+;; ======================================================================
+;; Customization
+;; ======================================================================
+
+(defgroup minuet-duet nil
+  "Minuet duet (next-edit prediction) settings."
+  :group 'minuet)
+
+(defcustom minuet-duet-provider 'gemini
+  "Provider for duet predictions."
+  :type '(choice (const :tag "OpenAI" openai)
+                 (const :tag "Claude" claude)
+                 (const :tag "Gemini" gemini)
+                 (const :tag "OpenAI Compatible" openai-compatible))
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-request-timeout 15
+  "Maximum timeout in seconds for duet requests."
+  :type 'integer
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-editable-region-lines-before 8
+  "Number of lines before point to include in the editable region."
+  :type 'integer
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-editable-region-lines-after 15
+  "Number of lines after point to include in the editable region."
+  :type 'integer
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-editable-region-start-marker "<editable_region_start>"
+  "Marker indicating the start of the editable region."
+  :type 'string
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-editable-region-end-marker "<editable_region_end>"
+  "Marker indicating the end of the editable region."
+  :type 'string
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-cursor-position-marker "<cursor_position>"
+  "Marker indicating the cursor position."
+  :type 'string
+  :group 'minuet-duet)
+
+(defcustom minuet-duet-preview-cursor "\xf246"
+  "Character used to render the predicted cursor position."
+  :type 'string
+  :group 'minuet-duet)
+
+;; Faces -----------------------------------------------------------------
+
+(defface minuet-duet-add-face
+  '((t :inherit diff-added))
+  "Face for proposed (added) lines in duet preview."
+  :group 'minuet-duet)
+
+(defface minuet-duet-delete-face
+  '((t :inherit diff-removed))
+  "Face for lines to be deleted in duet preview."
+  :group 'minuet-duet)
+
+(defface minuet-duet-cursor-face
+  '((t :inherit isearch))
+  "Face for the predicted cursor glyph in duet preview."
+  :group 'minuet-duet)
+
+;; ======================================================================
+;; Default prompts & templates
+;; ======================================================================
+
+(defun minuet-duet--render-markers (text)
+  "Replace marker placeholders in TEXT with configured marker strings."
+  (setq text (replace-regexp-in-string
+              (regexp-quote "{{{editable_region_start}}}")
+              minuet-duet-editable-region-start-marker text t t))
+  (setq text (replace-regexp-in-string
+              (regexp-quote "{{{editable_region_end}}}")
+              minuet-duet-editable-region-end-marker text t t))
+  (setq text (replace-regexp-in-string
+              (regexp-quote "{{{cursor_position}}}")
+              minuet-duet-cursor-position-marker text t t))
+  text)
+
+(defun minuet-duet--default-prompt ()
+  "Build the default duet system prompt."
+  (minuet-duet--render-markers
+   "You are an AI editing engine that rewrites only the editable region in a document.
+
+Input markers:
+- `{{{editable_region_start}}}` and `{{{editable_region_end}}}` wrap the editable region.
+- `{{{cursor_position}}}` marks the current cursor position inside that editable region."))
+
+(defun minuet-duet--default-guidelines ()
+  "Build the default duet guidelines."
+  (minuet-duet--render-markers
+   "Guidelines:
+1. Return only the rewritten editable region, wrapped in `{{{editable_region_start}}}` and `{{{editable_region_end}}}`.
+2. Include exactly one `{{{cursor_position}}}` marker inside the rewritten editable region.
+3. Preserve indentation, formatting, blank lines, and surrounding syntax conventions. Keep the exact number of empty lines unless you are intentionally changing them.
+4. Do not return explanations, markdown fences, or any content outside the editable region block.
+5. Make the rewrite coherent with the surrounding non-editable text."))
+
+(defvar minuet-duet-default-system-template
+  "{{{:prompt}}}\n{{{:guidelines}}}"
+  "Default system template for duet.")
+
+(defvar minuet-duet-default-system
+  `(:template minuet-duet-default-system-template
+    :prompt minuet-duet--default-prompt
+    :guidelines minuet-duet--default-guidelines)
+  "Default system prompt spec for duet.")
+
+(defun minuet-duet--default-chat-input-template ()
+  "Build the default chat input template with rendered markers."
+  (minuet-duet--render-markers
+   "{{{non_editable_region_before}}}
+{{{editable_region_start}}}
+{{{editable_region_before_cursor}}}{{{cursor_position}}}{{{editable_region_after_cursor}}}
+{{{editable_region_end}}}
+{{{non_editable_region_after}}}"))
+
+(defvar minuet-duet-default-chat-input
+  '(:template minuet-duet--default-chat-input-template)
+  "Default chat input spec for duet.")
+
+(defun minuet-duet--default-fewshots ()
+  "Build the default few-shot examples for duet."
+  (list
+   (list :role "user"
+         :content (minuet-duet--render-markers
+                   "type User = {
+    id: string;
+    name: string;
+    role?: string;
+    active?: boolean;
+};
+
+async function buildRequest(user: User, overrides: Record<string, any> = {}) {
+    const baseHeaders = { 'content-type': 'application/json' };
+
+{{{editable_region_start}}}
+    const payload = {
+        id: user.id,
+        name: user.name,
+    };
+
+    return {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify(payload{{{cursor_position}}}),
+    };
+{{{editable_region_end}}}
+}
+
+export async function sendUser(user: User, overrides = {}) {
+    const request = await buildRequest(user, overrides);
+    return fetch('/api/users', request);
+}"))
+   (list :role "assistant"
+         :content (minuet-duet--render-markers
+                   "{{{editable_region_start}}}
+    const payload = {
+        id: user.id,
+        name: user.name,
+        role: overrides.role ?? user.role ?? \"viewer\",
+        active: overrides.active ?? user.active ?? true,
+    };
+
+    return {
+        method: 'POST',
+        headers: {
+            ...baseHeaders,
+            ...overrides.headers,
+        },
+        body: JSON.stringify(payload),
+        signal: overrides.signal,
+        keepalive: overrides.keepalive ?? false,{{{cursor_position}}}
+    };
+{{{editable_region_end}}}"))))
+
+;; ======================================================================
+;; Provider option variables
+;; ======================================================================
+
+(defvar minuet-duet-openai-options
+  `(:model "gpt-5.4-mini"
+    :api-key "OPENAI_API_KEY"
+    :end-point "https://api.openai.com/v1/chat/completions"
+    :system ,minuet-duet-default-system
+    :fewshots minuet-duet--default-fewshots
+    :chat-input ,minuet-duet-default-chat-input
+    :optional nil
+    :transform ())
+  "Provider options for duet OpenAI backend.")
+
+(defvar minuet-duet-claude-options
+  `(:model "claude-haiku-4-5"
+    :api-key "ANTHROPIC_API_KEY"
+    :end-point "https://api.anthropic.com/v1/messages"
+    :max_tokens 8192
+    :system ,minuet-duet-default-system
+    :fewshots minuet-duet--default-fewshots
+    :chat-input ,minuet-duet-default-chat-input
+    :optional nil
+    :transform ())
+  "Provider options for duet Claude backend.")
+
+(defvar minuet-duet-gemini-options
+  `(:model "gemini-3-flash-preview"
+    :api-key "GEMINI_API_KEY"
+    :end-point "https://generativelanguage.googleapis.com/v1beta/models"
+    :system ,minuet-duet-default-system
+    :fewshots minuet-duet--default-fewshots
+    :chat-input ,minuet-duet-default-chat-input
+    :optional nil
+    :transform ())
+  "Provider options for duet Gemini backend.")
+
+(defvar minuet-duet-openai-compatible-options
+  `(:model "minimax/minimax-m2.7"
+    :api-key "OPENROUTER_API_KEY"
+    :end-point "https://openrouter.ai/api/v1/chat/completions"
+    :name "Openrouter"
+    :system ,minuet-duet-default-system
+    :fewshots minuet-duet--default-fewshots
+    :chat-input ,minuet-duet-default-chat-input
+    :optional nil
+    :transform ())
+  "Provider options for duet OpenAI-compatible backend.")
+
+;; ======================================================================
+;; Buffer-local state
+;; ======================================================================
+
+(defvar-local minuet-duet--request-seq 0
+  "Monotonically increasing request counter for staleness detection.")
+
+(defvar-local minuet-duet--pending-seq nil
+  "Sequence number of the pending duet request, or nil.")
+
+(defvar-local minuet-duet--overlays nil
+  "List of active duet preview overlays in this buffer.")
+
+(defvar-local minuet-duet--modified-tick nil
+  "Buffer `buffer-modified-tick' when the current preview was computed.")
+
+(defvar-local minuet-duet--region-start nil
+  "Buffer position of the editable region start.")
+
+(defvar-local minuet-duet--region-end nil
+  "Buffer position of the editable region end.")
+
+(defvar-local minuet-duet--original-lines nil
+  "List of original lines in the editable region.")
+
+(defvar-local minuet-duet--proposed-lines nil
+  "List of proposed replacement lines.")
+
+(defvar-local minuet-duet--proposed-cursor nil
+  "Plist (:row-offset N :col N) for the predicted cursor position.")
+
+(defvar-local minuet-duet--current-request nil
+  "The plz process object for the current duet request.")
+
+(defvar-local minuet-duet--after-change-active nil
+  "Non-nil when the duet after-change hook is installed.")
+
+;; ======================================================================
+;; System prompt builder
+;; ======================================================================
+
+(defun minuet-duet--make-system-prompt (template)
+  "Build system prompt string from duet TEMPLATE plist.
+TEMPLATE may be a string (returned as-is) or a plist with
+:template plus replacement keys."
+  (if (stringp template) template
+    (let* ((tmpl (minuet--eval-value (plist-get template :template)))
+           (keys (copy-sequence template)))
+      (setq keys (plist-put keys :template nil))
+      (cl-loop for (key val) on keys by #'cddr
+               when key do
+               (let* ((rendered (minuet--eval-value val))
+                      (rendered (if (stringp rendered) rendered "")))
+                 (setq tmpl (replace-regexp-in-string
+                             (regexp-quote (format "{{{%s}}}" key))
+                             rendered tmpl t t))))
+      ;; Remove unresolved placeholders
+      (replace-regexp-in-string "{{{[^}]*}}}" "" tmpl))))
+
+;; ======================================================================
+;; Chat input builder
+;; ======================================================================
+
+(defun minuet-duet--make-chat-input (context chat-input)
+  "Build the user chat input string from CONTEXT and CHAT-INPUT spec."
+  (let* ((resolved (minuet--eval-value chat-input))
+         (template (if (stringp resolved) resolved
+                     (minuet--eval-value (plist-get resolved :template)))))
+    (when (not (stringp template))
+      (setq template ""))
+    (setq template (replace-regexp-in-string
+                    (regexp-quote "{{{non_editable_region_before}}}")
+                    (plist-get context :non-editable-region-before)
+                    template t t))
+    (setq template (replace-regexp-in-string
+                    (regexp-quote "{{{editable_region_before_cursor}}}")
+                    (plist-get context :editable-region-before-cursor)
+                    template t t))
+    (setq template (replace-regexp-in-string
+                    (regexp-quote "{{{editable_region_after_cursor}}}")
+                    (plist-get context :editable-region-after-cursor)
+                    template t t))
+    (setq template (replace-regexp-in-string
+                    (regexp-quote "{{{non_editable_region_after}}}")
+                    (plist-get context :non-editable-region-after)
+                    template t t))
+    ;; Clean up unresolved placeholders
+    (replace-regexp-in-string "{{{[^}]*}}}" "" template)))
+
+;; ======================================================================
+;; Context builder
+;; ======================================================================
+
+(defun minuet-duet--build-context ()
+  "Build duet context plist from the current buffer and point.
+Returns a plist with:
+  :modified-tick
+  :non-editable-region-before
+  :editable-region-before-cursor
+  :editable-region-after-cursor
+  :non-editable-region-after
+  :original-lines
+  :region-start  (buffer position)
+  :region-end    (buffer position)"
+  (let* ((lines-before (max minuet-duet-editable-region-lines-before 0))
+         (lines-after (max minuet-duet-editable-region-lines-after 0))
+         ;; Current line number (1-based)
+         (cur-line (line-number-at-pos (point)))
+         (total-lines (count-lines (point-min) (point-max)))
+         ;; If buffer is empty, ensure at least 1 line
+         (total-lines (max total-lines 1))
+         ;; Editable region line bounds (1-based, inclusive)
+         (start-line (max 1 (- cur-line lines-before)))
+         (end-line (min total-lines (+ cur-line lines-after)))
+         ;; Convert to positions
+         (region-start (save-excursion
+                         (goto-char (point-min))
+                         (forward-line (1- start-line))
+                         (line-beginning-position)))
+         (region-end (save-excursion
+                       (goto-char (point-min))
+                       (forward-line (1- end-line))
+                       (line-end-position)))
+         ;; Four text segments
+         (non-editable-before (buffer-substring-no-properties (point-min) region-start))
+         (editable-before-cursor (buffer-substring-no-properties region-start (point)))
+         (editable-after-cursor (buffer-substring-no-properties (point) region-end))
+         (non-editable-after (buffer-substring-no-properties region-end (point-max)))
+         ;; Original lines in editable region
+         (editable-text (buffer-substring-no-properties region-start region-end))
+         (original-lines (split-string editable-text "\n")))
+    (list :modified-tick (buffer-modified-tick)
+          :non-editable-region-before non-editable-before
+          :editable-region-before-cursor editable-before-cursor
+          :editable-region-after-cursor editable-after-cursor
+          :non-editable-region-after non-editable-after
+          :original-lines original-lines
+          :region-start region-start
+          :region-end region-end)))
+
+;; ======================================================================
+;; Response parser
+;; ======================================================================
+
+(defun minuet-duet--count-occurrences (text needle)
+  "Count the number of non-overlapping occurrences of NEEDLE in TEXT."
+  (let ((count 0)
+        (start 0))
+    (while (setq start (cl-search needle text :start2 start))
+      (cl-incf count)
+      (setq start (+ start (length needle))))
+    count))
+
+(cl-defun minuet-duet--parse-response (text)
+  "Parse a duet LLM response TEXT.
+Returns (LINES . CURSOR) on success where LINES is a list of
+replacement strings and CURSOR is (:row-offset N :col N).
+Returns nil on failure and logs the reason."
+  (when (or (not (stringp text)) (string-empty-p text))
+    (minuet--log "Minuet duet: empty response")
+    (cl-return-from minuet-duet--parse-response nil))
+  (let ((start-marker minuet-duet-editable-region-start-marker)
+        (end-marker minuet-duet-editable-region-end-marker)
+        (cursor-marker minuet-duet-cursor-position-marker))
+    ;; Validate marker counts
+    (unless (= (minuet-duet--count-occurrences text start-marker) 1)
+      (minuet--log "Minuet duet: expected exactly one editable region start marker"
+                   minuet-show-error-message-on-minibuffer)
+      (cl-return-from minuet-duet--parse-response nil))
+    (unless (= (minuet-duet--count-occurrences text end-marker) 1)
+      (minuet--log "Minuet duet: expected exactly one editable region end marker"
+                   minuet-show-error-message-on-minibuffer)
+      (cl-return-from minuet-duet--parse-response nil))
+    ;; Extract inner text
+    (let* ((s-start (cl-search start-marker text))
+           (s-end (+ s-start (length start-marker)))
+           (e-start (cl-search end-marker text :start2 s-end))
+           (inner (substring text s-end e-start)))
+      ;; Trim one leading and one trailing newline
+      (when (and (> (length inner) 0) (= (aref inner 0) ?\n))
+        (setq inner (substring inner 1)))
+      (when (and (> (length inner) 0) (= (aref inner (1- (length inner))) ?\n))
+        (setq inner (substring inner 0 -1)))
+      ;; Validate cursor marker inside inner
+      (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
+        (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
+                     minuet-show-error-message-on-minibuffer)
+        (cl-return-from minuet-duet--parse-response nil))
+      ;; Split at cursor
+      (let* ((c-pos (cl-search cursor-marker inner))
+             (before (substring inner 0 c-pos))
+             (after (substring inner (+ c-pos (length cursor-marker))))
+             (text-without-cursor (concat before after))
+             (cursor-lines (split-string before "\n"))
+             (replacement-lines (split-string text-without-cursor "\n"))
+             (row-offset (1- (length cursor-lines)))
+             (col (length (car (last cursor-lines)))))
+        (cons replacement-lines
+              (list :row-offset row-offset :col col))))))
+
+;; ======================================================================
+;; Preview rendering
+;; ======================================================================
+
+(defun minuet-duet--clear-overlays ()
+  "Remove all duet preview overlays in the current buffer."
+  (dolist (ov minuet-duet--overlays)
+    (when (overlay-buffer ov)
+      (delete-overlay ov)))
+  (setq minuet-duet--overlays nil))
+
+(defun minuet-duet--make-overlay (beg end &rest props)
+  "Create a duet overlay from BEG to END with PROPS, and track it."
+  (let ((ov (make-overlay beg end)))
+    (while props
+      (overlay-put ov (pop props) (pop props)))
+    (push ov minuet-duet--overlays)
+    ov))
+
+(defun minuet-duet--make-chunks (text hl-face cursor-col cursor-char)
+  "Build a propertized string for TEXT with HL-FACE.
+When CURSOR-COL is non-nil, insert CURSOR-CHAR at that byte
+position with `minuet-duet-cursor-face'."
+  (if (null cursor-col)
+      (propertize text 'face hl-face)
+    (let ((before (substring text 0 (min cursor-col (length text))))
+          (after (substring text (min cursor-col (length text)))))
+      (concat
+       (when (> (length before) 0)
+         (propertize before 'face hl-face))
+       (propertize cursor-char 'face 'minuet-duet-cursor-face)
+       (when (> (length after) 0)
+         (propertize after 'face hl-face))))))
+
+(defun minuet-duet--cursor-col-for (proposed-idx)
+  "Return cursor column if PROPOSED-IDX (0-based) carries the cursor, else nil."
+  (when-let* ((c minuet-duet--proposed-cursor)
+              (matches (= proposed-idx (plist-get c :row-offset))))
+    (plist-get c :col)))
+
+(defun minuet-duet--line-bol (pos)
+  "Return the beginning-of-line position for POS."
+  (save-excursion (goto-char pos) (line-beginning-position)))
+
+(defun minuet-duet--line-eol (pos)
+  "Return the end-of-line position for POS."
+  (save-excursion (goto-char pos) (line-end-position)))
+
+(defun minuet-duet--nth-line-pos (region-start n)
+  "Return the beginning of the Nth line (0-based) from REGION-START."
+  (save-excursion
+    (goto-char region-start)
+    (forward-line n)
+    (point)))
+
+(defun minuet-duet--render-hunk (hunk cursor-char)
+  "Render a single diff HUNK using overlays.
+HUNK is a plist from `minuet-diff-line-hunks'.
+CURSOR-CHAR is the cursor glyph string."
+  (let* ((orig-start (plist-get hunk :original-start))   ; 1-based
+         (orig-count (plist-get hunk :original-count))
+         (prop-start (plist-get hunk :proposed-start))    ; 1-based
+         (prop-count (plist-get hunk :proposed-count))
+         (pair-count (min orig-count prop-count))
+         ;; region-start is the buffer position of the first editable line
+         (region-start minuet-duet--region-start))
+    ;; Replaced lines: mark original with delete-face, show proposed at eol
+    (dotimes (offset pair-count)
+      (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
+             (buf-line-end (minuet-duet--line-eol buf-line-start))
+             (proposed-line (nth (+ prop-start offset -1) minuet-duet--proposed-lines))
+             (proposed-idx (+ prop-start offset -1))  ; 0-based
+             (col (minuet-duet--cursor-col-for proposed-idx))
+             (chunks (minuet-duet--make-chunks (or proposed-line "") 'minuet-duet-add-face col cursor-char)))
+        (minuet-duet--make-overlay buf-line-start buf-line-end
+                                   'face 'minuet-duet-delete-face
+                                   'after-string (concat "  " chunks))))
+    ;; Extra deleted lines (orig-count > pair-count)
+    (cl-loop for offset from pair-count below orig-count do
+             (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
+                    (buf-line-end (minuet-duet--line-eol buf-line-start)))
+               (minuet-duet--make-overlay buf-line-start buf-line-end
+                                          'face 'minuet-duet-delete-face)))
+    ;; Extra inserted lines (prop-count > pair-count)
+    (when (> prop-count pair-count)
+      (let* ((virt-lines
+              (cl-loop for offset from pair-count below prop-count
+                       for proposed-line = (nth (+ prop-start offset -1) minuet-duet--proposed-lines)
+                       for proposed-idx = (+ prop-start offset -1)
+                       for col = (minuet-duet--cursor-col-for proposed-idx)
+                       collect (minuet-duet--make-chunks (or proposed-line "") 'minuet-duet-add-face col cursor-char)))
+             (virt-text (mapconcat #'identity virt-lines "\n"))
+             ;; Anchor: after the last original line in the hunk, or before editable start
+             (anchor-pos (if (> orig-count 0)
+                             (minuet-duet--line-eol
+                              (minuet-duet--nth-line-pos region-start (1- (+ orig-start (max orig-count 1) -1))))
+                           ;; Pure insertion: anchor before the line at orig-start
+                           (minuet-duet--nth-line-pos region-start (max 0 (1- orig-start))))))
+        (if (and (= orig-count 0) (= orig-start 0))
+            ;; Insert before the first line
+            (minuet-duet--make-overlay anchor-pos anchor-pos
+                                       'before-string (concat virt-text "\n"))
+          (minuet-duet--make-overlay anchor-pos anchor-pos
+                                     'after-string (concat "\n" virt-text)))))))
+
+(cl-defun minuet-duet--render-cursor-on-unchanged-line (hunks cursor-char)
+  "Render the cursor on an unchanged line not covered by any HUNKS.
+CURSOR-CHAR is the cursor glyph string."
+  (when-let* ((c minuet-duet--proposed-cursor)
+              (proposed-row-1 (1+ (plist-get c :row-offset))))
+    ;; Check if cursor row falls inside any hunk
+    (when (cl-loop for h in hunks
+                   for ps = (plist-get h :proposed-start)
+                   for pc = (plist-get h :proposed-count)
+                   thereis (and (>= proposed-row-1 ps)
+                                (< proposed-row-1 (+ ps pc))))
+      (cl-return-from minuet-duet--render-cursor-on-unchanged-line nil))
+    ;; Map proposed row to original row by undoing cumulative shift
+    (let ((shift 0))
+      (dolist (h hunks)
+        (let ((oc (plist-get h :original-count))
+              (ps (plist-get h :proposed-start))
+              (pc (plist-get h :proposed-count)))
+          (when (<= (+ ps pc) proposed-row-1)
+            (setq shift (+ shift (- pc oc))))))
+      (let* ((original-row-1 (- proposed-row-1 shift))
+             (buf-line-start (minuet-duet--nth-line-pos minuet-duet--region-start (1- original-row-1)))
+             (buf-line-end (minuet-duet--line-eol buf-line-start))
+             (line-text (or (nth (1- proposed-row-1) minuet-duet--proposed-lines) ""))
+             (chunks (minuet-duet--make-chunks line-text 'shadow (plist-get c :col) cursor-char)))
+        (minuet-duet--make-overlay buf-line-end buf-line-end
+                                   'after-string (concat "  " chunks))))))
+
+(defun minuet-duet--render-preview ()
+  "Render the duet preview overlays for the current prediction."
+  (minuet-duet--clear-overlays)
+  (let* ((hunks (minuet-diff-line-hunks minuet-duet--original-lines
+                                        minuet-duet--proposed-lines))
+         (cursor-char minuet-duet-preview-cursor))
+    (if (null hunks)
+        (progn
+          (minuet-duet--render-cursor-on-unchanged-line hunks cursor-char)
+          (unless minuet-duet--proposed-cursor
+            (minuet--log "Minuet duet predicts no text changes."
+                         minuet-show-error-message-on-minibuffer)))
+      (dolist (hunk hunks)
+        (minuet-duet--render-hunk hunk cursor-char))
+      (minuet-duet--render-cursor-on-unchanged-line hunks cursor-char))))
+
+;; ======================================================================
+;; After-change hook
+;; ======================================================================
+
+(defun minuet-duet--on-after-change (_beg _end _len)
+  "Clear duet preview/state when the buffer is modified."
+  (minuet-duet--clear-state))
+
+(defun minuet-duet--install-after-change-hook ()
+  "Install the duet after-change hook if not already active."
+  (unless minuet-duet--after-change-active
+    (add-hook 'after-change-functions #'minuet-duet--on-after-change nil t)
+    (setq minuet-duet--after-change-active t)))
+
+(defun minuet-duet--remove-after-change-hook ()
+  "Remove the duet after-change hook."
+  (when minuet-duet--after-change-active
+    (remove-hook 'after-change-functions #'minuet-duet--on-after-change t)
+    (setq minuet-duet--after-change-active nil)))
+
+;; ======================================================================
+;; State management
+;; ======================================================================
+
+(defun minuet-duet--cancel-request ()
+  "Cancel the current duet request if any."
+  (when (and minuet-duet--current-request
+             (process-live-p minuet-duet--current-request))
+    (minuet--log "Minuet duet: terminating pending request")
+    (signal-process minuet-duet--current-request 'SIGTERM))
+  (setq minuet-duet--current-request nil))
+
+(defun minuet-duet--clear-state ()
+  "Clear all duet state: cancel request, remove overlays, reset variables."
+  (minuet-duet--cancel-request)
+  (minuet-duet--clear-overlays)
+  (minuet-duet--remove-after-change-hook)
+  (setq minuet-duet--pending-seq nil
+        minuet-duet--modified-tick nil
+        minuet-duet--region-start nil
+        minuet-duet--region-end nil
+        minuet-duet--original-lines nil
+        minuet-duet--proposed-lines nil
+        minuet-duet--proposed-cursor nil))
+
+;; ======================================================================
+;; Request backends
+;; ======================================================================
+
+(defun minuet-duet--openai-complete-base (options context callback)
+  "Send a duet request using OpenAI-compatible API.
+OPTIONS is the provider plist, CONTEXT from `minuet-duet--build-context',
+CALLBACK receives the full response text or nil."
+  (let* ((system (minuet-duet--make-system-prompt (plist-get options :system)))
+         (prompt (minuet-duet--make-chat-input context (plist-get options :chat-input)))
+         (fewshots (copy-tree (minuet--eval-value (plist-get options :fewshots))))
+         (messages (vconcat
+                    `((:role "system" :content ,system))
+                    fewshots
+                    `((:role "user" :content ,prompt))))
+         (end-point (plist-get options :end-point))
+         (body `(,@(plist-get options :optional)
+                 :stream t
+                 :model ,(plist-get options :model)
+                 :messages ,messages))
+         (headers `(("Content-Type" . "application/json")
+                    ("Accept" . "application/json")
+                    ("Authorization" . ,(concat "Bearer " (minuet--get-api-key (plist-get options :api-key))))))
+         (transformed (minuet--apply-request-transform options end-point headers body))
+         (end-point (plist-get transformed :end-point))
+         (headers (plist-get transformed :headers))
+         (body-json (json-serialize (plist-get transformed :body))))
+    (minuet--with-temp-response
+      (setq minuet-duet--current-request
+            (plz 'post end-point
+              :headers headers
+              :timeout minuet-duet-request-timeout
+              :body body-json
+              :as 'string
+              :filter (minuet--make-process-stream-filter --response--)
+              :then
+              (lambda (json)
+                (setq minuet-duet--current-request nil)
+                (let ((text (minuet--stream-decode json #'minuet--openai-get-text-fn)))
+                  (funcall callback text)))
+              :else
+              (lambda (err)
+                (setq minuet-duet--current-request nil)
+                (if (equal (car (plz-error-curl-error err)) 28)
+                    (progn
+                      (minuet--log "Minuet duet OpenAI: request timeout")
+                      (let ((text (minuet--stream-decode-raw --response-- #'minuet--openai-get-text-fn)))
+                        (funcall callback text)))
+                  (minuet--log "Minuet duet OpenAI: request error"
+                               minuet-show-error-message-on-minibuffer)
+                  (minuet--log err)
+                  (funcall callback nil))))))))
+
+(cl-defun minuet-duet--claude-complete (context callback)
+  "Send a duet request using Claude API.
+CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
+  (let* ((options (copy-tree minuet-duet-claude-options))
+         (api-key (minuet--get-api-key (plist-get options :api-key))))
+    (unless api-key
+      (minuet--log "Minuet duet: Anthropic API key is not set"
+                   minuet-show-error-message-on-minibuffer)
+      (funcall callback nil)
+      (cl-return-from minuet-duet--claude-complete))
+    (let* ((system (minuet-duet--make-system-prompt (plist-get options :system)))
+           (prompt (minuet-duet--make-chat-input context (plist-get options :chat-input)))
+           (fewshots (copy-tree (minuet--eval-value (plist-get options :fewshots))))
+           (messages (vconcat fewshots `((:role "user" :content ,prompt))))
+           (end-point (plist-get options :end-point))
+           (body `(,@(plist-get options :optional)
+                   :stream t
+                   :model ,(plist-get options :model)
+                   :system ,system
+                   :max_tokens ,(plist-get options :max_tokens)
+                   :messages ,messages))
+           (headers `(("Content-Type" . "application/json")
+                      ("x-api-key" . ,api-key)
+                      ("anthropic-version" . "2023-06-01")))
+           (transformed (minuet--apply-request-transform options end-point headers body))
+           (end-point (plist-get transformed :end-point))
+           (headers (plist-get transformed :headers))
+           (body-json (json-serialize (plist-get transformed :body))))
+      (minuet--with-temp-response
+        (setq minuet-duet--current-request
+              (plz 'post end-point
+                :headers headers
+                :timeout minuet-duet-request-timeout
+                :body body-json
+                :as 'string
+                :filter (minuet--make-process-stream-filter --response--)
+                :then
+                (lambda (json)
+                  (setq minuet-duet--current-request nil)
+                  (let ((text (minuet--stream-decode json #'minuet--claude-get-text-fn)))
+                    (funcall callback text)))
+                :else
+                (lambda (err)
+                  (setq minuet-duet--current-request nil)
+                  (if (equal (car (plz-error-curl-error err)) 28)
+                      (progn
+                        (minuet--log "Minuet duet Claude: request timeout")
+                        (let ((text (minuet--stream-decode-raw --response-- #'minuet--claude-get-text-fn)))
+                          (funcall callback text)))
+                    (minuet--log "Minuet duet Claude: request error"
+                                 minuet-show-error-message-on-minibuffer)
+                    (minuet--log err)
+                    (funcall callback nil)))))))))
+
+(cl-defun minuet-duet--gemini-complete (context callback)
+  "Send a duet request using Gemini API.
+CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
+  (let* ((options (copy-tree minuet-duet-gemini-options))
+         (api-key (minuet--get-api-key (plist-get options :api-key))))
+    (unless api-key
+      (minuet--log "Minuet duet: Gemini API key is not set"
+                   minuet-show-error-message-on-minibuffer)
+      (funcall callback nil)
+      (cl-return-from minuet-duet--gemini-complete))
+    (let* ((system (minuet-duet--make-system-prompt (plist-get options :system)))
+           (prompt (minuet-duet--make-chat-input context (plist-get options :chat-input)))
+           (fewshots (minuet--eval-value (plist-get options :fewshots)))
+           (fewshots (minuet--transform-openai-chat-to-gemini-chat (copy-tree fewshots)))
+           (messages (vconcat fewshots
+                              `((:role "user" :parts [(:text ,prompt)]))))
+           (end-point (format "%s/%s:streamGenerateContent?alt=sse"
+                              (plist-get options :end-point)
+                              (plist-get options :model)))
+           (body `(,@(plist-get options :optional)
+                   :system_instruction (:parts (:text ,system))
+                   :contents ,messages))
+           (headers `(("Content-Type" . "application/json")
+                      ("x-goog-api-key" . ,api-key)
+                      ("Accept" . "application/json")))
+           (transformed (minuet--apply-request-transform options end-point headers body))
+           (end-point (plist-get transformed :end-point))
+           (headers (plist-get transformed :headers))
+           (body-json (json-serialize (plist-get transformed :body))))
+      (minuet--with-temp-response
+        (setq minuet-duet--current-request
+              (plz 'post end-point
+                :headers headers
+                :timeout minuet-duet-request-timeout
+                :body body-json
+                :as 'string
+                :filter (minuet--make-process-stream-filter --response--)
+                :then
+                (lambda (json)
+                  (setq minuet-duet--current-request nil)
+                  (let ((text (minuet--stream-decode json #'minuet--gemini-get-text-fn)))
+                    (funcall callback text)))
+                :else
+                (lambda (err)
+                  (setq minuet-duet--current-request nil)
+                  (if (equal (car (plz-error-curl-error err)) 28)
+                      (progn
+                        (minuet--log "Minuet duet Gemini: request timeout")
+                        (let ((text (minuet--stream-decode-raw --response-- #'minuet--gemini-get-text-fn)))
+                          (funcall callback text)))
+                    (minuet--log "Minuet duet Gemini: request error"
+                                 minuet-show-error-message-on-minibuffer)
+                    (minuet--log err)
+                    (funcall callback nil)))))))))
+
+;; ======================================================================
+;; Prediction lifecycle
+;; ======================================================================
+
+;;;###autoload
+(cl-defun minuet-duet-predict ()
+  "Request a duet (next-edit) prediction for the region around point."
+  (interactive)
+  (minuet-duet--clear-state)
+  (let* ((context (minuet-duet--build-context))
+         (buffer (current-buffer))
+         (provider minuet-duet-provider)
+         (complete-fn (pcase provider
+                        ('openai
+                         (lambda (ctx cb)
+                           (minuet-duet--openai-complete-base minuet-duet-openai-options ctx cb)))
+                        ('openai-compatible
+                         (lambda (ctx cb)
+                           (minuet-duet--openai-complete-base minuet-duet-openai-compatible-options ctx cb)))
+                        ('claude #'minuet-duet--claude-complete)
+                        ('gemini #'minuet-duet--gemini-complete)
+                        (_ (minuet--log (format "Minuet duet provider not supported: %s" provider)
+                                        t)
+                           nil))))
+    (unless complete-fn
+      (cl-return-from minuet-duet-predict))
+    (cl-incf minuet-duet--request-seq)
+    (let ((seq minuet-duet--request-seq))
+      (setq minuet-duet--pending-seq seq)
+      (minuet-duet--install-after-change-hook)
+      (minuet--log "Minuet duet started")
+      (funcall complete-fn context
+               (lambda (text)
+                 (when (buffer-live-p buffer)
+                   (with-current-buffer buffer
+                     ;; Stale?
+                     (unless (eq minuet-duet--pending-seq seq)
+                       (cl-return-from minuet-duet-predict))
+                     (setq minuet-duet--pending-seq nil)
+                     (unless text
+                       (cl-return-from minuet-duet-predict))
+                     ;; Buffer changed since request?
+                     (unless (= (buffer-modified-tick) (plist-get context :modified-tick))
+                       (minuet--log "Minuet duet: result arrived after buffer changed; discarded.")
+                       (cl-return-from minuet-duet-predict))
+                     ;; Parse
+                     (if-let* ((parsed (minuet-duet--parse-response text)))
+                         (progn
+                           (setq minuet-duet--modified-tick (plist-get context :modified-tick)
+                                 minuet-duet--region-start (plist-get context :region-start)
+                                 minuet-duet--region-end (plist-get context :region-end)
+                                 minuet-duet--original-lines (plist-get context :original-lines)
+                                 minuet-duet--proposed-lines (car parsed)
+                                 minuet-duet--proposed-cursor (cdr parsed))
+                           (minuet-duet--render-preview))
+                       (minuet--log "Minuet duet: invalid response"
+                                    minuet-show-error-message-on-minibuffer)))))))))
+
+;;;###autoload
+(cl-defun minuet-duet-apply ()
+  "Apply the current duet prediction, replacing the editable region."
+  (interactive)
+  (unless (and minuet-duet--proposed-lines
+               minuet-duet--region-start
+               minuet-duet--region-end
+               minuet-duet--proposed-cursor)
+    (minuet--log "No Minuet duet prediction to apply." t)
+    (cl-return-from minuet-duet-apply))
+  (unless (= (buffer-modified-tick) minuet-duet--modified-tick)
+    (minuet-duet--clear-state)
+    (minuet--log "Minuet duet prediction is stale and has been discarded." t)
+    (cl-return-from minuet-duet-apply))
+  (let ((region-start minuet-duet--region-start)
+        (region-end minuet-duet--region-end)
+        (new-text (mapconcat #'identity minuet-duet--proposed-lines "\n"))
+        (cursor-offset (let* ((c minuet-duet--proposed-cursor)
+                              (row (plist-get c :row-offset))
+                              (col (plist-get c :col))
+                              (lines minuet-duet--proposed-lines)
+                              (char-offset 0))
+                         (dotimes (i row)
+                           (setq char-offset (+ char-offset (length (nth i lines)) 1)))
+                         (+ char-offset (min col (length (nth row lines)))))))
+    ;; Remove the after-change hook to avoid recursive clear
+    (minuet-duet--remove-after-change-hook)
+    (minuet-duet--clear-overlays)
+    ;; Replace text
+    (goto-char region-start)
+    (delete-region region-start region-end)
+    (insert new-text)
+    ;; Move point to predicted cursor
+    (goto-char (+ region-start cursor-offset))
+    ;; Reset state
+    (setq minuet-duet--pending-seq nil
+          minuet-duet--modified-tick nil
+          minuet-duet--region-start nil
+          minuet-duet--region-end nil
+          minuet-duet--original-lines nil
+          minuet-duet--proposed-lines nil
+          minuet-duet--proposed-cursor nil)))
+
+;;;###autoload
+(defun minuet-duet-dismiss ()
+  "Dismiss the current duet prediction."
+  (interactive)
+  (minuet-duet--clear-state))
+
+;;;###autoload
+(defun minuet-duet-visible-p ()
+  "Return non-nil if a duet preview is currently visible."
+  (and minuet-duet--overlays
+       (cl-some (lambda (ov) (overlay-buffer ov)) minuet-duet--overlays)))
+
+(provide 'minuet-duet)
+;;; minuet-duet.el ends here
