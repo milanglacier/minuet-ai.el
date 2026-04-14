@@ -973,7 +973,6 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
   (interactive)
   (minuet-duet--clear-state))
 
-;;;###autoload
 (defun minuet-duet-visible-p ()
   "Return non-nil if a duet preview is currently visible."
   (and minuet-duet--overlays
