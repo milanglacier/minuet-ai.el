@@ -31,34 +31,44 @@
 
 (require 'cl-lib)
 
-(defun minuet-diff--lcs-length-table (a b)
-  "Compute LCS length table for sequences A and B.
-Returns a 2D vector of size (len-a+1) x (len-b+1)."
-  (let* ((la (length a))
-         (lb (length b))
+(defun minuet-diff--as-vector (lines)
+  "Return LINES as a vector."
+  (if (vectorp lines)
+      lines
+    (vconcat lines)))
+
+(defun minuet-diff--lcs-length-table (original proposed)
+  "Compute the LCS length table for ORIGINAL and PROPOSED.
+ORIGINAL and PROPOSED are vectors of lines.  Return a 2D vector of
+size (len-original+1) x (len-proposed+1)."
+  (let* ((la (length original))
+         (lb (length proposed))
          (dp (make-vector (1+ la) nil)))
     (dotimes (i (1+ la))
       (aset dp i (make-vector (1+ lb) 0)))
     (dotimes (i la)
-      (dotimes (j lb)
-        (aset (aref dp (1+ i)) (1+ j)
-              (if (equal (nth i a) (nth j b))
-                  (1+ (aref (aref dp i) j))
-                (max (aref (aref dp i) (1+ j))
-                     (aref (aref dp (1+ i)) j))))))
+      (let ((row (aref dp i))
+            (next-row (aref dp (1+ i)))
+            (original-line (aref original i)))
+        (dotimes (j lb)
+          (aset next-row (1+ j)
+                (if (equal original-line (aref proposed j))
+                    (1+ (aref row j))
+                  (max (aref row (1+ j))
+                       (aref next-row j)))))))
     dp))
 
-(defun minuet-diff--backtrack (dp a b)
-  "Backtrack through DP table to produce edit operations for A and B.
+(defun minuet-diff--backtrack (dp original proposed)
+  "Backtrack through DP to produce edit operations for ORIGINAL and PROPOSED.
 Returns a list of (:type :a-idx :b-idx) plists in forward order.
 :type is one of `equal', `delete', `insert'."
-  (let ((i (length a))
-        (j (length b))
+  (let ((i (length original))
+        (j (length proposed))
         ops)
     (while (or (> i 0) (> j 0))
       (cond
        ((and (> i 0) (> j 0)
-             (equal (nth (1- i) a) (nth (1- j) b)))
+             (equal (aref original (1- i)) (aref proposed (1- j))))
         (push (list :type 'equal :a-idx (1- i) :b-idx (1- j)) ops)
         (cl-decf i)
         (cl-decf j))
@@ -73,6 +83,56 @@ Returns a list of (:type :a-idx :b-idx) plists in forward order.
         (cl-decf i))))
     ops))
 
+(defun minuet-diff--ops-to-hunks (ops)
+  "Convert OPS into diff hunks.
+Each returned hunk is a plist with `:original-start', `:original-count',
+`:proposed-start', and `:proposed-count'.  Start positions are 1-based.
+
+For pure insertions, `:original-start' is the insertion position in the
+original sequence: 1 means before the first original line, and
+`(1+ (length ORIGINAL))' means after the last original line."
+  (let ((original-pos 0)
+        (proposed-pos 0)
+        hunks
+        hunk-original-start
+        hunk-proposed-start
+        hunk-original-count
+        hunk-proposed-count)
+    (cl-labels
+        ((start-hunk ()
+                     (unless hunk-original-start
+                       (setq hunk-original-start original-pos
+                             hunk-proposed-start proposed-pos
+                             hunk-original-count 0
+                             hunk-proposed-count 0)))
+         (flush-hunk ()
+                     (when hunk-original-start
+                       (push (list :original-start (1+ hunk-original-start)
+                                   :original-count hunk-original-count
+                                   :proposed-start (1+ hunk-proposed-start)
+                                   :proposed-count hunk-proposed-count)
+                             hunks)
+                       (setq hunk-original-start nil
+                             hunk-proposed-start nil
+                             hunk-original-count nil
+                             hunk-proposed-count nil))))
+      (dolist (op ops)
+        (pcase (plist-get op :type)
+          ('equal
+           (flush-hunk)
+           (cl-incf original-pos)
+           (cl-incf proposed-pos))
+          ('delete
+           (start-hunk)
+           (cl-incf hunk-original-count)
+           (cl-incf original-pos))
+          ('insert
+           (start-hunk)
+           (cl-incf hunk-proposed-count)
+           (cl-incf proposed-pos))))
+      (flush-hunk))
+    (nreverse hunks)))
+
 (defun minuet-diff-line-hunks (original proposed)
   "Compute line-level diff hunks between ORIGINAL and PROPOSED.
 ORIGINAL and PROPOSED are lists of strings (lines).
@@ -82,43 +142,16 @@ Returns a list of hunks, each a plist with keys:
   :proposed-start  - 1-based start index in PROPOSED
   :proposed-count  - number of lines from PROPOSED
 
-A hunk with :original-count 0 is a pure insertion.
+A hunk with :original-count 0 is a pure insertion.  In that case
+`:original-start' is the insertion position in ORIGINAL, where 1 means
+before the first line and `(1+ (length ORIGINAL))' means after the last.
 A hunk with :proposed-count 0 is a pure deletion.
 Otherwise it is a replacement."
-  (let* ((dp (minuet-diff--lcs-length-table original proposed))
-         (ops (minuet-diff--backtrack dp original proposed))
-         hunks
-         cur-del-start cur-del-count
-         cur-ins-start cur-ins-count)
-    (cl-flet ((flush ()
-                     (when (or (and cur-del-count (> cur-del-count 0))
-                               (and cur-ins-count (> cur-ins-count 0)))
-                       (push (list :original-start (1+ (or cur-del-start 0))
-                                   :original-count (or cur-del-count 0)
-                                   :proposed-start (1+ (or cur-ins-start 0))
-                                   :proposed-count (or cur-ins-count 0))
-                             hunks))
-                     (setq cur-del-start nil cur-del-count nil
-                           cur-ins-start nil cur-ins-count nil)))
-      (dolist (op ops)
-        (let ((type (plist-get op :type)))
-          (cond
-           ((eq type 'equal)
-            (flush))
-           ((eq type 'delete)
-            (let ((ai (plist-get op :a-idx)))
-              (if cur-del-count
-                  (cl-incf cur-del-count)
-                (setq cur-del-start ai
-                      cur-del-count 1))))
-           ((eq type 'insert)
-            (let ((bi (plist-get op :b-idx)))
-              (if cur-ins-count
-                  (cl-incf cur-ins-count)
-                (setq cur-ins-start bi
-                      cur-ins-count 1)))))))
-      (flush))
-    (nreverse hunks)))
+  (let* ((original (minuet-diff--as-vector original))
+         (proposed (minuet-diff--as-vector proposed))
+         (dp (minuet-diff--lcs-length-table original proposed))
+         (ops (minuet-diff--backtrack dp original proposed)))
+    (minuet-diff--ops-to-hunks ops)))
 
 (provide 'minuet-diff)
 ;;; minuet-diff.el ends here

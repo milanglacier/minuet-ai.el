@@ -478,6 +478,12 @@ Returns nil on failure and logs the reason."
     (push ov minuet-duet--overlays)
     ov))
 
+(defun minuet-duet--append-overlay-string (overlay property suffix)
+  "Append SUFFIX to OVERLAY PROPERTY."
+  (overlay-put overlay property
+               (concat (or (overlay-get overlay property) "")
+                       suffix)))
+
 (defun minuet-duet--make-chunks (text hl-face cursor-col cursor-char)
   "Build a propertized string for TEXT with HL-FACE.
 When CURSOR-COL is non-nil, insert CURSOR-CHAR at that byte
@@ -524,7 +530,9 @@ CURSOR-CHAR is the cursor glyph string."
          (prop-count (plist-get hunk :proposed-count))
          (pair-count (min orig-count prop-count))
          ;; region-start is the buffer position of the first editable line
-         (region-start minuet-duet--region-start))
+         (region-start minuet-duet--region-start)
+         (original-line-count (length minuet-duet--original-lines))
+         (last-paired-overlay nil))
     ;; Replaced lines: mark original with delete-face, show proposed at eol
     (dotimes (offset pair-count)
       (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
@@ -533,9 +541,10 @@ CURSOR-CHAR is the cursor glyph string."
              (proposed-idx (+ prop-start offset -1))  ; 0-based
              (col (minuet-duet--cursor-col-for proposed-idx))
              (chunks (minuet-duet--make-chunks (or proposed-line "") 'minuet-duet-add-face col cursor-char)))
-        (minuet-duet--make-overlay buf-line-start buf-line-end
-                                   'face 'minuet-duet-delete-face
-                                   'after-string (concat "  " chunks))))
+        (setq last-paired-overlay
+              (minuet-duet--make-overlay buf-line-start buf-line-end
+                                         'face 'minuet-duet-delete-face
+                                         'after-string (concat "  " chunks)))))
     ;; Extra deleted lines (orig-count > pair-count)
     (cl-loop for offset from pair-count below orig-count do
              (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
@@ -550,19 +559,28 @@ CURSOR-CHAR is the cursor glyph string."
                        for proposed-idx = (+ prop-start offset -1)
                        for col = (minuet-duet--cursor-col-for proposed-idx)
                        collect (minuet-duet--make-chunks (or proposed-line "") 'minuet-duet-add-face col cursor-char)))
-             (virt-text (mapconcat #'identity virt-lines "\n"))
-             ;; Anchor: after the last original line in the hunk, or before editable start
-             (anchor-pos (if (> orig-count 0)
-                             (minuet-duet--line-eol
-                              (minuet-duet--nth-line-pos region-start (1- (+ orig-start (max orig-count 1) -1))))
-                           ;; Pure insertion: anchor before the line at orig-start
-                           (minuet-duet--nth-line-pos region-start (max 0 (1- orig-start))))))
-        (if (and (= orig-count 0) (= orig-start 0))
-            ;; Insert before the first line
-            (minuet-duet--make-overlay anchor-pos anchor-pos
-                                       'before-string (concat virt-text "\n"))
-          (minuet-duet--make-overlay anchor-pos anchor-pos
-                                     'after-string (concat "\n" virt-text)))))))
+             (virt-text (mapconcat #'identity virt-lines "\n")))
+        (if (and (> orig-count 0) last-paired-overlay)
+            ;; Keep replacement continuations in the same overlay.  When
+            ;; multiple `after-string' overlays share the same anchor on an
+            ;; indented blank line, Emacs can render them out of order.
+            (minuet-duet--append-overlay-string last-paired-overlay 'after-string
+                                                (concat "\n" virt-text))
+          (cond
+           ((= original-line-count 0)
+            (minuet-duet--make-overlay region-start region-start
+                                       'before-string virt-text))
+           ((<= orig-start original-line-count)
+            (let ((anchor-pos
+                   (minuet-duet--nth-line-pos region-start (1- orig-start))))
+              (minuet-duet--make-overlay anchor-pos anchor-pos
+                                         'before-string (concat virt-text "\n"))))
+           (t
+            (let ((anchor-pos
+                   (minuet-duet--line-eol
+                    (minuet-duet--nth-line-pos region-start (1- original-line-count)))))
+              (minuet-duet--make-overlay anchor-pos anchor-pos
+                                         'after-string (concat "\n" virt-text))))))))))
 
 (cl-defun minuet-duet--render-cursor-on-unchanged-line (hunks cursor-char)
   "Render the cursor on an unchanged line not covered by any HUNKS.
