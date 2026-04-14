@@ -35,9 +35,9 @@
 
 (require 'minuet)
 
-;; ======================================================================
+;;;;;
 ;; Customization
-;; ======================================================================
+;;;;;
 
 (defgroup minuet-duet nil
   "Minuet duet (next-edit prediction) settings."
@@ -78,7 +78,7 @@
   "Character used to render the predicted cursor position."
   :type 'string)
 
-;; Faces -----------------------------------------------------------------
+;; Faces
 
 (defface minuet-duet-add-face
   '((t :inherit diff-added))
@@ -95,9 +95,9 @@
   "Face for the predicted cursor glyph in duet preview."
   )
 
-;; ======================================================================
+;;;;;
 ;; Default prompts & templates
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--render-markers (text)
   "Replace marker placeholders in TEXT with configured marker strings."
@@ -235,9 +235,9 @@ export async function sendUser(user: User, overrides = {}) {
     };
 {{{:editable_region_end}}}"))))
 
-;; ======================================================================
+;;;;;
 ;; Provider option variables
-;; ======================================================================
+;;;;;
 
 (defvar minuet-duet-openai-options
   `(:model "gpt-5.4-mini"
@@ -285,9 +285,9 @@ export async function sendUser(user: User, overrides = {}) {
     :transform ())
   "Provider options for duet OpenAI-compatible backend.")
 
-;; ======================================================================
+;;;;;
 ;; Buffer-local state
-;; ======================================================================
+;;;;;
 
 (defvar-local minuet-duet--request-seq 0
   "Monotonically increasing request counter for staleness detection.")
@@ -322,9 +322,9 @@ export async function sendUser(user: User, overrides = {}) {
 (defvar-local minuet-duet--after-change-active nil
   "Non-nil when the duet after-change hook is installed.")
 
-;; ======================================================================
+;;;;;
 ;; System prompt builder
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--make-system-prompt (template)
   "Build system prompt string from duet TEMPLATE plist.
@@ -342,9 +342,9 @@ TEMPLATE must be a plist with :template plus replacement keys."
     ;; Remove unresolved placeholders
     (replace-regexp-in-string "{{{[^}]*}}}" "" tmpl)))
 
-;; ======================================================================
+;;;;;
 ;; Chat input builder
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--make-chat-input (context chat-input)
   "Build the user chat input string from CONTEXT and CHAT-INPUT spec."
@@ -369,9 +369,9 @@ TEMPLATE must be a plist with :template plus replacement keys."
              (push (substring template last-pos) parts))
     (apply #'concat (nreverse parts))))
 
-;; ======================================================================
+;;;;;
 ;; Context builder
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--build-context ()
   "Build duet context plist from the current buffer and point.
@@ -420,9 +420,9 @@ Returns a plist with:
           :region-start region-start
           :region-end region-end)))
 
-;; ======================================================================
+;;;;;
 ;; Response parser
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--count-occurrences (text needle)
   "Count the number of non-overlapping occurrences of NEEDLE in TEXT."
@@ -480,9 +480,9 @@ Returns nil on failure and logs the reason."
         (cons replacement-lines
               (list :row-offset row-offset :col col))))))
 
-;; ======================================================================
+;;;;;
 ;; Preview rendering
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--clear-overlays ()
   "Remove all duet preview overlays in the current buffer."
@@ -648,9 +648,9 @@ CURSOR-CHAR is the cursor glyph string."
                      minuet-show-error-message-on-minibuffer)))
     (minuet-duet--render-cursor-on-unchanged-line hunks cursor-char)))
 
-;; ======================================================================
+;;;;;
 ;; After-change hook
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--on-after-change (_beg _end _len)
   "Clear duet preview/state when the buffer is modified."
@@ -668,9 +668,9 @@ CURSOR-CHAR is the cursor glyph string."
     (remove-hook 'after-change-functions #'minuet-duet--on-after-change t)
     (setq minuet-duet--after-change-active nil)))
 
-;; ======================================================================
+;;;;;
 ;; State management
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--cancel-request ()
   "Cancel the current duet request if any."
@@ -693,9 +693,9 @@ CURSOR-CHAR is the cursor glyph string."
         minuet-duet--proposed-lines nil
         minuet-duet--proposed-cursor nil))
 
-;; ======================================================================
+;;;;;
 ;; Request backends
-;; ======================================================================
+;;;;;
 
 (defun minuet-duet--openai-complete-base (options context callback)
   "Send a duet request using OpenAI-compatible API.
@@ -864,9 +864,9 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
                     (minuet--log err)
                     (funcall callback nil)))))))))
 
-;; ======================================================================
+;;;;;
 ;; Prediction lifecycle
-;; ======================================================================
+;;;;;
 
 ;;;###autoload
 (defun minuet-duet-predict ()
