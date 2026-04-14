@@ -574,7 +574,7 @@ CURSOR-CHAR is the cursor glyph string."
         (setq last-paired-overlay
               (minuet-duet--make-overlay buf-line-start buf-line-end
                                          'face 'minuet-duet-delete-face
-                                         'after-string (concat "  " chunks)))))
+                                         'after-string chunks))))
     ;; Extra deleted lines (orig-count > pair-count)
     (cl-loop for offset from pair-count below orig-count do
              (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (+ orig-start offset)))
@@ -641,7 +641,7 @@ CURSOR-CHAR is the cursor glyph string."
               (line-text (or (nth proposed-row minuet-duet--proposed-lines) ""))
               (chunks (minuet-duet--make-chunks line-text 'shadow (plist-get c :col) cursor-char)))
     (minuet-duet--make-overlay buf-line-end buf-line-end
-                               'after-string (concat "  " chunks))))
+                               'after-string chunks)))
 
 (defun minuet-duet--render-preview ()
   "Render the duet preview overlays for the current prediction."
