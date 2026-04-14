@@ -304,21 +304,19 @@ export async function sendUser(user: User, overrides = {}) {
 
 (defun minuet-duet--make-system-prompt (template)
   "Build system prompt string from duet TEMPLATE plist.
-TEMPLATE may be a string (returned as-is) or a plist with
-:template plus replacement keys."
-  (if (stringp template) template
-    (let* ((tmpl (minuet--eval-value (plist-get template :template)))
-           (keys (copy-sequence template)))
-      (setq keys (plist-put keys :template nil))
-      (cl-loop for (key val) on keys by #'cddr
-               when key do
-               (let* ((rendered (minuet--eval-value val))
-                      (rendered (if (stringp rendered) rendered "")))
-                 (setq tmpl (replace-regexp-in-string
-                             (regexp-quote (format "{{{%s}}}" key))
-                             rendered tmpl t t))))
-      ;; Remove unresolved placeholders
-      (replace-regexp-in-string "{{{[^}]*}}}" "" tmpl))))
+TEMPLATE must be a plist with :template plus replacement keys."
+  (let* ((tmpl (minuet--eval-value (plist-get template :template)))
+         (keys (copy-sequence template)))
+    (setq keys (plist-put keys :template nil))
+    (cl-loop for (key val) on keys by #'cddr
+             when key do
+             (let* ((rendered (minuet--eval-value val))
+                    (rendered (if (stringp rendered) rendered "")))
+               (setq tmpl (replace-regexp-in-string
+                           (regexp-quote (format "{{{%s}}}" key))
+                           rendered tmpl t t))))
+    ;; Remove unresolved placeholders
+    (replace-regexp-in-string "{{{[^}]*}}}" "" tmpl)))
 
 ;; ======================================================================
 ;; Chat input builder
