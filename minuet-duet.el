@@ -545,9 +545,9 @@ position with `minuet-duet-cursor-face'."
   "Render a single diff HUNK using overlays.
 HUNK is a plist from `minuet-diff-line-hunks'.
 CURSOR-CHAR is the cursor glyph string."
-  (let* ((orig-start (plist-get hunk :original-start))   ; 1-based
+  (let* ((orig-start (plist-get hunk :original-start))
          (orig-count (plist-get hunk :original-count))
-         (prop-start (plist-get hunk :proposed-start))    ; 1-based
+         (prop-start (plist-get hunk :proposed-start))
          (prop-count (plist-get hunk :proposed-count))
          (pair-count (min orig-count prop-count))
          (region-start minuet-duet--region-start)
@@ -555,9 +555,9 @@ CURSOR-CHAR is the cursor glyph string."
          (last-paired-overlay nil))
     ;; Replaced lines: mark original with delete-face, show proposed at eol
     (dotimes (offset pair-count)
-      (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
+      (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (+ orig-start offset)))
              (buf-line-end (minuet-duet--line-eol buf-line-start))
-             (proposed-idx (+ prop-start offset -1))
+             (proposed-idx (+ prop-start offset))
              (col (minuet-duet--cursor-col-for proposed-idx))
              (chunks (minuet-duet--make-chunks
                       (or (nth proposed-idx minuet-duet--proposed-lines) "")
@@ -568,7 +568,7 @@ CURSOR-CHAR is the cursor glyph string."
                                          'after-string (concat "  " chunks)))))
     ;; Extra deleted lines (orig-count > pair-count)
     (cl-loop for offset from pair-count below orig-count do
-             (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (1- (+ orig-start offset))))
+             (let* ((buf-line-start (minuet-duet--nth-line-pos region-start (+ orig-start offset)))
                     (buf-line-end (minuet-duet--line-eol buf-line-start)))
                (minuet-duet--make-overlay buf-line-start buf-line-end
                                           'face 'minuet-duet-delete-face)))
@@ -577,7 +577,7 @@ CURSOR-CHAR is the cursor glyph string."
       (let ((virt-text
              (mapconcat
               (lambda (offset)
-                (let* ((proposed-idx (+ prop-start offset -1))
+                (let* ((proposed-idx (+ prop-start offset))
                        (col (minuet-duet--cursor-col-for proposed-idx)))
                   (minuet-duet--make-chunks
                    (or (nth proposed-idx minuet-duet--proposed-lines) "")
@@ -596,8 +596,8 @@ CURSOR-CHAR is the cursor glyph string."
           (minuet-duet--make-overlay region-start region-start
                                      'before-string virt-text))
          ;; Insert before the anchor line
-         ((<= orig-start original-line-count)
-          (let ((anchor (minuet-duet--nth-line-pos region-start (1- orig-start))))
+         ((< orig-start original-line-count)
+          (let ((anchor (minuet-duet--nth-line-pos region-start orig-start)))
             (minuet-duet--make-overlay anchor anchor
                                        'before-string (concat virt-text "\n"))))
          ;; Append after the last original line
@@ -611,25 +611,25 @@ CURSOR-CHAR is the cursor glyph string."
   "Render the cursor on an unchanged line not covered by any HUNKS.
 CURSOR-CHAR is the cursor glyph string."
   (when-let* ((c minuet-duet--proposed-cursor)
-              (proposed-row-1 (1+ (plist-get c :row-offset)))
+              (proposed-row (plist-get c :row-offset))
               ;; Bail out if cursor row falls inside any hunk
               (_not-in-hunk
                (not (cl-loop for h in hunks
                              for ps = (plist-get h :proposed-start)
                              for pc = (plist-get h :proposed-count)
-                             thereis (and (>= proposed-row-1 ps)
-                                          (< proposed-row-1 (+ ps pc))))))
+                             thereis (and (>= proposed-row ps)
+                                          (< proposed-row (+ ps pc))))))
               ;; Map proposed row to original row by undoing cumulative shift
               (shift (cl-loop for h in hunks
                               for oc = (plist-get h :original-count)
                               for ps = (plist-get h :proposed-start)
                               for pc = (plist-get h :proposed-count)
-                              when (<= (+ ps pc) proposed-row-1)
+                              when (<= (+ ps pc) proposed-row)
                               sum (- pc oc)))
-              (original-row-1 (- proposed-row-1 shift))
-              (buf-line-start (minuet-duet--nth-line-pos minuet-duet--region-start (1- original-row-1)))
+              (original-row (- proposed-row shift))
+              (buf-line-start (minuet-duet--nth-line-pos minuet-duet--region-start original-row))
               (buf-line-end (minuet-duet--line-eol buf-line-start))
-              (line-text (or (nth (1- proposed-row-1) minuet-duet--proposed-lines) ""))
+              (line-text (or (nth proposed-row minuet-duet--proposed-lines) ""))
               (chunks (minuet-duet--make-chunks line-text 'shadow (plist-get c :col) cursor-char)))
     (minuet-duet--make-overlay buf-line-end buf-line-end
                                'after-string (concat "  " chunks))))

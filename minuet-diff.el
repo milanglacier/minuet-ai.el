@@ -86,11 +86,11 @@ Returns a list of (:type :a-idx :b-idx) plists in forward order.
 (defun minuet-diff--ops-to-hunks (ops)
   "Convert OPS into diff hunks.
 Each returned hunk is a plist with `:original-start', `:original-count',
-`:proposed-start', and `:proposed-count'.  Start positions are 1-based.
+`:proposed-start', and `:proposed-count'.  Start positions are 0-based.
 
 For pure insertions, `:original-start' is the insertion position in the
-original sequence: 1 means before the first original line, and
-`(1+ (length ORIGINAL))' means after the last original line."
+original sequence: 0 means before the first original line, and
+`(length ORIGINAL)' means after the last original line."
   (let ((original-pos 0)
         (proposed-pos 0)
         hunks
@@ -107,9 +107,9 @@ original sequence: 1 means before the first original line, and
                              hunk-proposed-count 0)))
          (flush-hunk ()
                      (when hunk-original-start
-                       (push (list :original-start (1+ hunk-original-start)
+                       (push (list :original-start hunk-original-start
                                    :original-count hunk-original-count
-                                   :proposed-start (1+ hunk-proposed-start)
+                                   :proposed-start hunk-proposed-start
                                    :proposed-count hunk-proposed-count)
                              hunks)
                        (setq hunk-original-start nil
@@ -137,14 +137,14 @@ original sequence: 1 means before the first original line, and
   "Compute line-level diff hunks between ORIGINAL and PROPOSED.
 ORIGINAL and PROPOSED are lists of strings (lines).
 Returns a list of hunks, each a plist with keys:
-  :original-start  - 1-based start index in ORIGINAL
+  :original-start  - 0-based start index in ORIGINAL
   :original-count  - number of lines from ORIGINAL
-  :proposed-start  - 1-based start index in PROPOSED
+  :proposed-start  - 0-based start index in PROPOSED
   :proposed-count  - number of lines from PROPOSED
 
 A hunk with :original-count 0 is a pure insertion.  In that case
-`:original-start' is the insertion position in ORIGINAL, where 1 means
-before the first line and `(1+ (length ORIGINAL))' means after the last.
+`:original-start' is the insertion position in ORIGINAL, where 0 means
+before the first line and `(length ORIGINAL)' means after the last.
 A hunk with :proposed-count 0 is a pure deletion.
 Otherwise it is a replacement."
   (let* ((original (minuet-diff--as-vector original))
