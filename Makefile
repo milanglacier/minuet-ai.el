@@ -1,9 +1,9 @@
 EMACS ?= emacs
-TEST_FILE ?= tests/minuet-duet-tests.el
+TEST_FILES ?= tests/minuet-diff-tests.el tests/minuet-duet-tests.el
 
 .PHONY: test check
 
 test: check
 
 check:
-	$(EMACS) -Q --batch -l $(TEST_FILE) -f ert-run-tests-batch-and-exit
+	$(EMACS) -Q --batch $(foreach file,$(TEST_FILES),-l $(file)) -f ert-run-tests-batch-and-exit

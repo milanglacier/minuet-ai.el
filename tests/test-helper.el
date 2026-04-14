@@ -45,7 +45,8 @@
 (let* ((this-file (or load-file-name (buffer-file-name)))
        (tests-dir (file-name-directory this-file))
        (project-dir (file-name-directory (directory-file-name tests-dir))))
-  (setq package-user-dir (minuet-test--package-user-dir)
+  (setq load-prefer-newer t
+        package-user-dir (minuet-test--package-user-dir)
         package-check-signature nil
         package-quickstart nil
         package-quickstart-file

@@ -1,9 +1,9 @@
-;;; minuet-duet-tests.el --- Tests for minuet-duet and minuet-diff -*- lexical-binding: t; -*-
+;;; minuet-duet-tests.el --- Tests for minuet-duet -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
-;; ERT tests for minuet-diff-line-hunks, duet response parsing,
-;; context extraction, and integration tests for apply/dismiss.
+;; ERT tests for duet response parsing, context extraction, and
+;; integration tests for apply/dismiss.
 
 ;;; Code:
 
@@ -14,59 +14,7 @@
       nil t)
 
 (require 'minuet)
-(require 'minuet-diff)
-
 (require 'minuet-duet)
-
-;; =====================================================================
-;; minuet-diff-line-hunks tests
-;; =====================================================================
-
-(ert-deftest minuet-diff-no-op ()
-  "Identical inputs produce no hunks."
-  (should (null (minuet-diff-line-hunks '("a" "b" "c") '("a" "b" "c")))))
-
-(ert-deftest minuet-diff-empty-inputs ()
-  "Two empty lists produce no hunks."
-  (should (null (minuet-diff-line-hunks nil nil))))
-
-(ert-deftest minuet-diff-pure-insertion ()
-  "Inserting lines into an empty original."
-  (let ((hunks (minuet-diff-line-hunks nil '("x" "y"))))
-    (should (= (length hunks) 1))
-    (should (= (plist-get (car hunks) :original-count) 0))
-    (should (= (plist-get (car hunks) :proposed-count) 2))))
-
-(ert-deftest minuet-diff-pure-deletion ()
-  "Deleting all lines."
-  (let ((hunks (minuet-diff-line-hunks '("a" "b") nil)))
-    (should (= (length hunks) 1))
-    (should (= (plist-get (car hunks) :original-count) 2))
-    (should (= (plist-get (car hunks) :proposed-count) 0))))
-
-(ert-deftest minuet-diff-replacement ()
-  "Single-line replacement."
-  (let ((hunks (minuet-diff-line-hunks '("a" "b" "c") '("a" "X" "c"))))
-    (should (= (length hunks) 1))
-    (should (= (plist-get (car hunks) :original-start) 2))
-    (should (= (plist-get (car hunks) :original-count) 1))
-    (should (= (plist-get (car hunks) :proposed-start) 2))
-    (should (= (plist-get (car hunks) :proposed-count) 1))))
-
-(ert-deftest minuet-diff-mixed-multi-hunk ()
-  "Multiple hunks: deletion + insertion."
-  (let ((hunks (minuet-diff-line-hunks '("a" "b" "c" "d" "e")
-                                       '("a" "c" "X" "e"))))
-    ;; b deleted (hunk 1), X inserted after c (hunk 2), d deleted (implicit or merged)
-    (should (>= (length hunks) 1))))
-
-(ert-deftest minuet-diff-insertion-in-middle ()
-  "Insert new lines in the middle."
-  (let ((hunks (minuet-diff-line-hunks '("a" "b") '("a" "X" "b"))))
-    (should (= (length hunks) 1))
-    (should (= (plist-get (car hunks) :original-count) 0))
-    (should (= (plist-get (car hunks) :proposed-count) 1))
-    (should (= (plist-get (car hunks) :proposed-start) 2))))
 
 ;; =====================================================================
 ;; Duet response parsing tests
@@ -211,6 +159,61 @@
 ;; =====================================================================
 ;; Integration tests: apply, dismiss, stale detection
 ;; =====================================================================
+
+(ert-deftest minuet-duet-render-preview-pure-insertion-in-middle ()
+  "Pure insertions in the middle render before the following line."
+  (with-temp-buffer
+    (insert "a\nb")
+    (setq minuet-duet--region-start (point-min)
+          minuet-duet--original-lines '("a" "b")
+          minuet-duet--proposed-lines '("a" "x" "b")
+          minuet-duet--proposed-cursor nil)
+    (minuet-duet--render-preview)
+    (should (= (length minuet-duet--overlays) 1))
+    (let* ((ov (car minuet-duet--overlays))
+           (line-2-start (save-excursion
+                           (goto-char (point-min))
+                           (forward-line 1)
+                           (point))))
+      (should (= (overlay-start ov) line-2-start))
+      (should (= (overlay-end ov) line-2-start))
+      (should (overlay-get ov 'before-string))
+      (should-not (overlay-get ov 'after-string)))))
+
+(ert-deftest minuet-duet-render-preview-pure-insertion-at-end ()
+  "Pure insertions at the end render after the last original line."
+  (with-temp-buffer
+    (insert "a\nb")
+    (setq minuet-duet--region-start (point-min)
+          minuet-duet--original-lines '("a" "b")
+          minuet-duet--proposed-lines '("a" "b" "x")
+          minuet-duet--proposed-cursor nil)
+    (minuet-duet--render-preview)
+    (should (= (length minuet-duet--overlays) 1))
+    (let ((ov (car minuet-duet--overlays)))
+      (should (= (overlay-start ov) (point-max)))
+      (should (= (overlay-end ov) (point-max)))
+      (should-not (overlay-get ov 'before-string))
+      (should (overlay-get ov 'after-string)))))
+
+(ert-deftest minuet-duet-render-preview-replacement-continuation-keeps-order ()
+  "Replacement continuations stay ordered on an indented blank line."
+  (with-temp-buffer
+    (insert "    \n")
+    (setq minuet-duet--region-start (point-min)
+          minuet-duet--original-lines '("    ")
+          minuet-duet--proposed-lines
+          '("    result[\"diff\"] = result[\"max\"] - result[\"first\"]"
+            "    return result[\"diff\"]")
+          minuet-duet--proposed-cursor nil)
+    (minuet-duet--render-preview)
+    (should (= (length minuet-duet--overlays) 1))
+    (let* ((ov (car minuet-duet--overlays))
+           (after (substring-no-properties (overlay-get ov 'after-string))))
+      (should (string-match-p
+               (regexp-quote
+                "result[\"diff\"] = result[\"max\"] - result[\"first\"]\n    return result[\"diff\"]")
+               after)))))
 
 (ert-deftest minuet-duet-apply-replaces-region ()
   "Apply replaces only the editable region."
