@@ -868,45 +868,45 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
 ;; ======================================================================
 
 ;;;###autoload
-(cl-defun minuet-duet-predict ()
+(defun minuet-duet-predict ()
   "Request a duet (next-edit) prediction for the region around point."
   (interactive)
   (minuet-duet--clear-state)
   (let* ((context (minuet-duet--build-context))
          (buffer (current-buffer))
          (provider minuet-duet-provider)
-         (complete-fn (intern (format "minuet-duet--%s-complete" provider))))
-    (cl-incf minuet-duet--request-seq)
-    (let ((seq minuet-duet--request-seq))
-      (setq minuet-duet--pending-seq seq)
-      (minuet-duet--install-after-change-hook)
-      (minuet--log "Minuet duet started")
-      (funcall complete-fn context
-               (lambda (text)
-                 (when (buffer-live-p buffer)
-                   (with-current-buffer buffer
-                     ;; Stale?
-                     (unless (eq minuet-duet--pending-seq seq)
-                       (cl-return-from minuet-duet-predict))
-                     (setq minuet-duet--pending-seq nil)
-                     (unless text
-                       (cl-return-from minuet-duet-predict))
-                     ;; Buffer changed since request?
-                     (unless (= (buffer-modified-tick) (plist-get context :modified-tick))
-                       (minuet--log "Minuet duet: result arrived after buffer changed; discarded.")
-                       (cl-return-from minuet-duet-predict))
-                     ;; Parse
-                     (if-let* ((parsed (minuet-duet--parse-response text)))
-                         (progn
-                           (setq minuet-duet--modified-tick (plist-get context :modified-tick)
-                                 minuet-duet--region-start (plist-get context :region-start)
-                                 minuet-duet--region-end (plist-get context :region-end)
-                                 minuet-duet--original-lines (plist-get context :original-lines)
-                                 minuet-duet--proposed-lines (car parsed)
-                                 minuet-duet--proposed-cursor (cdr parsed))
-                           (minuet-duet--render-preview))
-                       (minuet--log "Minuet duet: invalid response"
-                                    minuet-show-error-message-on-minibuffer)))))))))
+         (complete-fn (intern (format "minuet-duet--%s-complete" provider)))
+         (modified-tick (plist-get context :modified-tick))
+         (region-start (plist-get context :region-start))
+         (region-end (plist-get context :region-end))
+         (original-lines (plist-get context :original-lines))
+         (seq (cl-incf minuet-duet--request-seq)))
+    (setq minuet-duet--pending-seq seq)
+    (minuet-duet--install-after-change-hook)
+    (minuet--log "Minuet duet started")
+    (funcall
+     complete-fn context
+     (lambda (text)
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (when (eq minuet-duet--pending-seq seq)
+             (setq minuet-duet--pending-seq nil)
+             (cond
+              ((not text) nil)
+              ((/= (buffer-modified-tick) modified-tick)
+               (minuet--log "Minuet duet: result arrived after buffer changed; discarded."))
+              (t
+               (if-let* ((parsed (minuet-duet--parse-response text)))
+                   (progn
+                     (setq minuet-duet--modified-tick modified-tick
+                           minuet-duet--region-start region-start
+                           minuet-duet--region-end region-end
+                           minuet-duet--original-lines original-lines
+                           minuet-duet--proposed-lines (car parsed)
+                           minuet-duet--proposed-cursor (cdr parsed))
+                     (minuet-duet--render-preview))
+                 (minuet--log "Minuet duet: invalid response"
+                              minuet-show-error-message-on-minibuffer)))))))))))
 
 ;;;###autoload
 (cl-defun minuet-duet-apply ()
