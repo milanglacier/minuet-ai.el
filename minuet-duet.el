@@ -78,12 +78,10 @@
   "Character used to render the predicted cursor position."
   :type 'string)
 
-;;;###autoload
 (defvar minuet-duet-active-mode-map
   (let ((map (make-sparse-keymap))) map)
   "Keymap used when `minuet-duet-active-mode' is enabled.")
 
-;;;###autoload
 (define-minor-mode minuet-duet-active-mode
   "Activated when there is an active duet preview in Minuet."
   :init-value nil
