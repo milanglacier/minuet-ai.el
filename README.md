@@ -65,6 +65,8 @@ as dancers move during a minuet.
 - When your typed text matches the start of a suggestion, Minuet keeps the
   completion in sync of your typed text rather than discarding it, to reduce
   unnecessary LLM requests and conserving resources.
+- Support next-edit prediction (NES) via `minuet-duet` commands. This feature is
+  highly experimental.
 
 **With minibuffer frontend**:
 
@@ -459,6 +461,63 @@ default is `0.4` seconds.
 
 The minimum time in seconds between 2 completion requests. The default is `1.0`
 seconds.
+
+# Duet (Next Edit Prediction)
+
+`minuet-duet` is Minuet's highly experimental next-edit prediction (NES)
+feature.
+
+Basic usage is manual. Bind the duet commands to your preferred keymaps, then:
+
+1. Trigger `minuet-duet-predict` to request a prediction for the current edit.
+2. Review the preview rendered in the buffer.
+3. Apply it with `minuet-duet-apply` or discard it with `minuet-duet-dismiss`.
+
+Example config:
+
+```elisp
+(use-package minuet
+  :bind
+  ;; Global keymap to trigger duet prediction
+  (("C-c d" . #'minuet-duet-predict)
+   :map minuet-duet-active-mode-map
+   ;; These keymaps activate when a duet preview is displayed
+   ("M-a" . #'minuet-duet-apply)      ;; accept the prediction
+   ("M-e" . #'minuet-duet-dismiss))    ;; dismiss the preview
+  :config
+  ;; Set the duet provider (openai, claude, gemini, openai-compatible)
+  (setq minuet-duet-provider 'gemini)
+  (minuet-set-optional-options minuet-duet-gemini-options
+                               :generationConfig
+                               '(:thinkingConfig (:thinkingLevel "minimal"))))
+
+```
+
+This feature is highly experimental:
+
+- It only targets general-purpose LLMs rather than NES-specialized models, as I
+  lack local GPU resources for testing.
+- Comparable small models from competitors of Google—`claude-haiku-4.5` and
+  `gpt-5.4-mini`—perform poorly.
+- Given completion latency constraints, automatic duet prediction is not
+  implemented.
+
+It is recommended to configure the thinking levels of the models; refer to the
+[provider options](#provider-options) for guidance on managing thinking settings
+for each provider.
+
+Avoid setting a small `max_tokens` or `max_completion_tokens` limit for duet
+requests. Duet expects the model to return the complete rewritten editable
+region, including the cursor marker; if the response is truncated, the parser
+will reject it. Leave the limit unset when the provider allows that, or set it
+large enough to cover the full rewritten region.
+
+## TODO
+
+- [ ] Implement a proper diff mechanism to include recent edit changes in
+      prompts.
+- [ ] Add support for specialized NES models (Zeta, Sweep).
+- [ ] Implement automatically triggered duet prediction.
 
 # Provider Options
 
