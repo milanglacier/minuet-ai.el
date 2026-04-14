@@ -16,9 +16,9 @@
 (require 'minuet)
 (require 'minuet-duet)
 
-;; =====================================================================
+;;;;;
 ;; Duet response parsing tests
-;; =====================================================================
+;;;;;
 
 (ert-deftest minuet-duet-parse-valid ()
   "Valid response with one cursor marker."
@@ -95,9 +95,9 @@
   (should (null (minuet-duet--parse-response "")))
   (should (null (minuet-duet--parse-response nil))))
 
-;; =====================================================================
+;;;;;
 ;; Context extraction tests
-;; =====================================================================
+;;;;;
 
 (ert-deftest minuet-duet-make-system-prompt-default-template ()
   "Default duet system template expands configured prompt fragments."
@@ -212,9 +212,9 @@
       ;; Non-editable before should contain "line1"
       (should (string-match-p "line1" (plist-get ctx :non-editable-region-before))))))
 
-;; =====================================================================
+;;;;;
 ;; Integration tests: apply, dismiss, stale detection
-;; =====================================================================
+;;;;;
 
 (ert-deftest minuet-duet-render-preview-pure-insertion-in-middle ()
   "Pure insertions in the middle render before the following line."
