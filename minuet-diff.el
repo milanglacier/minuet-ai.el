@@ -91,15 +91,15 @@ Otherwise it is a replacement."
          cur-del-start cur-del-count
          cur-ins-start cur-ins-count)
     (cl-flet ((flush ()
-                (when (or (and cur-del-count (> cur-del-count 0))
-                          (and cur-ins-count (> cur-ins-count 0)))
-                  (push (list :original-start (1+ (or cur-del-start 0))
-                              :original-count (or cur-del-count 0)
-                              :proposed-start (1+ (or cur-ins-start 0))
-                              :proposed-count (or cur-ins-count 0))
-                        hunks))
-                (setq cur-del-start nil cur-del-count nil
-                      cur-ins-start nil cur-ins-count nil)))
+                     (when (or (and cur-del-count (> cur-del-count 0))
+                               (and cur-ins-count (> cur-ins-count 0)))
+                       (push (list :original-start (1+ (or cur-del-start 0))
+                                   :original-count (or cur-del-count 0)
+                                   :proposed-start (1+ (or cur-ins-start 0))
+                                   :proposed-count (or cur-ins-count 0))
+                             hunks))
+                     (setq cur-del-start nil cur-del-count nil
+                           cur-ins-start nil cur-ins-count nil)))
       (dolist (op ops)
         (let ((type (plist-get op :type)))
           (cond
