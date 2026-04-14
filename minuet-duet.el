@@ -152,8 +152,32 @@ Input markers:
 {{{:editable_region_end}}}
 {{{:non_editable_region_after}}}"))
 
+(defun minuet-duet--chat-input-non-editable-region-before (context)
+  "Return the non-editable region before the editable region from CONTEXT."
+  (plist-get context :non-editable-region-before))
+
+(defun minuet-duet--chat-input-editable-region-before-cursor (context)
+  "Return the editable region before point from CONTEXT."
+  (plist-get context :editable-region-before-cursor))
+
+(defun minuet-duet--chat-input-editable-region-after-cursor (context)
+  "Return the editable region after point from CONTEXT."
+  (plist-get context :editable-region-after-cursor))
+
+(defun minuet-duet--chat-input-non-editable-region-after (context)
+  "Return the non-editable region after the editable region from CONTEXT."
+  (plist-get context :non-editable-region-after))
+
 (defvar minuet-duet-default-chat-input
-  '(:template minuet-duet--default-chat-input-template)
+  '(:template minuet-duet--default-chat-input-template
+    :non_editable_region_before
+    minuet-duet--chat-input-non-editable-region-before
+    :editable_region_before_cursor
+    minuet-duet--chat-input-editable-region-before-cursor
+    :editable_region_after_cursor
+    minuet-duet--chat-input-editable-region-after-cursor
+    :non_editable_region_after
+    minuet-duet--chat-input-non-editable-region-after)
   "Default chat input spec for duet.")
 
 (defun minuet-duet--default-fewshots ()
@@ -324,27 +348,26 @@ TEMPLATE must be a plist with :template plus replacement keys."
 
 (defun minuet-duet--make-chat-input (context chat-input)
   "Build the user chat input string from CONTEXT and CHAT-INPUT spec."
-  (let* ((template (minuet--eval-value (plist-get chat-input :template))))
-    (when (not (stringp template))
+  (let* ((template (minuet--eval-value (plist-get chat-input :template)))
+         (parts nil))
+    (unless (stringp template)
       (setq template ""))
-    (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{:non_editable_region_before}}}")
-                    (plist-get context :non-editable-region-before)
-                    template t t))
-    (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{:editable_region_before_cursor}}}")
-                    (plist-get context :editable-region-before-cursor)
-                    template t t))
-    (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{:editable_region_after_cursor}}}")
-                    (plist-get context :editable-region-after-cursor)
-                    template t t))
-    (setq template (replace-regexp-in-string
-                    (regexp-quote "{{{:non_editable_region_after}}}")
-                    (plist-get context :non-editable-region-after)
-                    template t t))
-    ;; Clean up unresolved placeholders
-    (replace-regexp-in-string "{{{[^}]*}}}" "" template)))
+    (cl-loop with last-pos = 0
+             for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
+             until (not match)
+             for start-pos = (match-beginning 0)
+             for end-pos = (match-end 0)
+             for key = (match-string 1 template)
+             do
+             (when (> start-pos last-pos)
+               (push (substring template last-pos start-pos) parts))
+             (when-let* ((repl-fn (plist-get chat-input (intern key)))
+                         (value (funcall repl-fn context)))
+               (push value parts))
+             (setq last-pos end-pos)
+             finally
+             (push (substring template last-pos) parts))
+    (apply #'concat (nreverse parts))))
 
 ;; ======================================================================
 ;; Context builder

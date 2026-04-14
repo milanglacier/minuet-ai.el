@@ -99,6 +99,42 @@
 ;; Context extraction tests
 ;; =====================================================================
 
+(ert-deftest minuet-duet-make-chat-input-default-template ()
+  "Default duet chat input expands dynamic placeholders from CONTEXT."
+  (let* ((context '(:non-editable-region-before "before\n"
+                    :editable-region-before-cursor "edit-before"
+                    :editable-region-after-cursor "edit-after"
+                    :non-editable-region-after "\nafter"))
+         (result (minuet-duet--make-chat-input context
+                                               minuet-duet-default-chat-input)))
+    (should
+     (equal result
+            (concat "before\n\n"
+                    minuet-duet-editable-region-start-marker "\n"
+                    "edit-before"
+                    minuet-duet-cursor-position-marker
+                    "edit-after\n"
+                    minuet-duet-editable-region-end-marker
+                    "\n\n"
+                    "after")))))
+
+(ert-deftest minuet-duet-make-chat-input-custom-placeholder-dispatch ()
+  "Custom duet chat input placeholders are resolved from CHAT-INPUT."
+  (let* ((context '(:name "world"))
+         (chat-input '(:template minuet-duet-test--chat-input-template
+                       :greeting minuet-duet-test--chat-input-greeting
+                       :missing nil))
+         (result (minuet-duet--make-chat-input context chat-input)))
+    (should (equal result "Hello, world! "))))
+
+(defun minuet-duet-test--chat-input-template ()
+  "Return a custom chat input template used by duet tests."
+  "{{{:greeting}}}! {{{:missing}}}")
+
+(defun minuet-duet-test--chat-input-greeting (context)
+  "Return a greeting derived from CONTEXT for duet tests."
+  (format "Hello, %s" (plist-get context :name)))
+
 (ert-deftest minuet-duet-context-empty-buffer ()
   "Context from an empty buffer."
   (with-temp-buffer
