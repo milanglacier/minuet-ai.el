@@ -42,27 +42,27 @@ Use MESSAGE in the assertion failure."
 
 (ert-deftest minuet-duet-parse-valid ()
   "Valid response with one cursor marker."
-  (let ((text (concat "<editable_region_start>\n"
-                      "hello <cursor_position>world\n"
-                      "<editable_region_end>")))
-    (let ((result (minuet-duet--parse-response text)))
-      (should result)
-      (should (equal (car result) '("hello world")))
-      (should (= (plist-get (cdr result) :row-offset) 0))
-      (should (= (plist-get (cdr result) :col) 6)))))
+  (let* ((text (concat "<editable_region_start>\n"
+                       "hello <cursor_position>world\n"
+                       "<editable_region_end>"))
+         (result (minuet-duet--parse-response text)))
+    (should result)
+    (should (equal (car result) '("hello world")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 6))))
 
 (ert-deftest minuet-duet-parse-multiline ()
   "Valid multi-line response."
-  (let ((text (concat "<editable_region_start>\n"
-                      "line1\n"
-                      "line2<cursor_position>\n"
-                      "line3\n"
-                      "<editable_region_end>")))
-    (let ((result (minuet-duet--parse-response text)))
-      (should result)
-      (should (equal (car result) '("line1" "line2" "line3")))
-      (should (= (plist-get (cdr result) :row-offset) 1))
-      (should (= (plist-get (cdr result) :col) 5)))))
+  (let* ((text (concat "<editable_region_start>\n"
+                       "line1\n"
+                       "line2<cursor_position>\n"
+                       "line3\n"
+                       "<editable_region_end>"))
+         (result (minuet-duet--parse-response text)))
+    (should result)
+    (should (equal (car result) '("line1" "line2" "line3")))
+    (should (= (plist-get (cdr result) :row-offset) 1))
+    (should (= (plist-get (cdr result) :col) 5))))
 
 (ert-deftest minuet-duet-parse-missing-start-marker ()
   "Missing start marker returns nil."
@@ -98,17 +98,17 @@ Use MESSAGE in the assertion failure."
 (ert-deftest minuet-duet-parse-newline-trimming ()
   "Leading and trailing newlines inside markers are trimmed."
   ;; Two leading newlines: first trimmed, second kept as empty first line
-  (let ((text (concat "<editable_region_start>\n\n"
-                      "<cursor_position>hello\n"
-                      "<editable_region_end>")))
-    (let ((result (minuet-duet--parse-response text)))
-      (should result)
-      ;; The inner text after removing first \n is "\n<cursor>hello"
-      ;; Trailing \n is also trimmed, so inner = "\n<cursor>hello" -> "" and "hello"
-      ;; Actually: inner after first trim = "\n<cursor_position>hello"
-      ;; trailing trim: "\n<cursor_position>hello" (no trailing \n to trim)
-      ;; So lines = ("" "hello"), cursor at line 1 col 0
-      (should (equal (car result) '("" "hello"))))))
+  (let* ((text (concat "<editable_region_start>\n\n"
+                       "<cursor_position>hello\n"
+                       "<editable_region_end>"))
+         (result (minuet-duet--parse-response text)))
+    (should result)
+    ;; The inner text after removing first \n is "\n<cursor>hello"
+    ;; Trailing \n is also trimmed, so inner = "\n<cursor>hello" -> "" and "hello"
+    ;; Actually: inner after first trim = "\n<cursor_position>hello"
+    ;; trailing trim: "\n<cursor_position>hello" (no trailing \n to trim)
+    ;; So lines = ("" "hello"), cursor at line 1 col 0
+    (should (equal (car result) '("" "hello")))))
 
 (ert-deftest minuet-duet-parse-empty-response ()
   "Empty string returns nil."
@@ -465,17 +465,17 @@ Use MESSAGE in the assertion failure."
   "Property-only buffer churn does not stale the first duet response."
   (with-temp-buffer
     (insert "const value = 1;")
-    (let ((callback nil)
-          (response (concat minuet-duet-editable-region-start-marker "\n"
-                            "const value = 2;"
-                            minuet-duet-cursor-position-marker
-                            "\n"
-                            minuet-duet-editable-region-end-marker)))
+    (let* ((callback nil)
+           (response (concat minuet-duet-editable-region-start-marker "\n"
+                             "const value = 2;"
+                             minuet-duet-cursor-position-marker
+                             "\n"
+                             minuet-duet-editable-region-end-marker))
+           (minuet-duet-provider 'gemini))
       (cl-letf (((symbol-function 'minuet-duet--gemini-complete)
                  (lambda (_context cb)
                    (setq callback cb))))
-        (let ((minuet-duet-provider 'gemini))
-          (minuet-duet-predict)))
+        (minuet-duet-predict))
       (should callback)
       ;; Simulate cold-start fontification/property setup without editing text.
       (with-silent-modifications
