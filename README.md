@@ -83,6 +83,8 @@ package.
 
 https://github.com/user-attachments/assets/04716eab-9acc-46f4-a47d-d6c763eca4c2
 
+**With duet (next edit prediction)**:
+
 https://github.com/user-attachments/assets/45a0dab0-6fc0-4d21-9060-a98597e1ea84
 
 <!-- The links above are showcase videos hosted externally on GitHub. -->
