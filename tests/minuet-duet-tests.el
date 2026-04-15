@@ -342,6 +342,86 @@
       ;; Point should be at region-start + 2
       (should (= (point) (+ region-start 2))))))
 
+(ert-deftest minuet-duet-apply-complex-multiline-rewrite ()
+  "Apply handles a complex multi-line rewrite with blank lines."
+  (with-temp-buffer
+    (insert
+     (mapconcat
+      #'identity
+      '("function buildRequest(user, overrides) {"
+        "  const headers = { 'content-type': 'application/json' };"
+        "  const payload = {"
+        "    id: user.id,"
+        "    name: user.name,"
+        "  };"
+        "  return send(payload, headers);"
+        "}"
+        ""
+        "export default buildRequest;")
+      "\n"))
+    (setq minuet-duet--chars-modified-tick (buffer-chars-modified-tick)
+          minuet-duet--region-start (save-excursion
+                                      (goto-char (point-min))
+                                      (forward-line 2)
+                                      (point))
+          minuet-duet--region-end (save-excursion
+                                    (goto-char (point-min))
+                                    (forward-line 6)
+                                    (line-end-position))
+          minuet-duet--original-lines
+          '("  const payload = {"
+            "    id: user.id,"
+            "    name: user.name,"
+            "  };"
+            "  return send(payload, headers);")
+          minuet-duet--proposed-lines
+          '("  const payload = {"
+            "    id: user.id,"
+            "    name: user.name,"
+            "    role: overrides.role ?? 'viewer',"
+            "  };"
+            ""
+            "  if (overrides.dryRun) {"
+            "    return payload;"
+            "  }"
+            ""
+            "  return send(payload, {"
+            "    ...headers,"
+            "    ...overrides.headers,"
+            "  });")
+          minuet-duet--proposed-cursor '(:row-offset 7 :col 11)
+          minuet-duet-active-mode t)
+    (minuet-duet-apply)
+    (should
+     (string=
+      (buffer-string)
+      (mapconcat
+       #'identity
+       '("function buildRequest(user, overrides) {"
+         "  const headers = { 'content-type': 'application/json' };"
+         "  const payload = {"
+         "    id: user.id,"
+         "    name: user.name,"
+         "    role: overrides.role ?? 'viewer',"
+         "  };"
+         ""
+         "  if (overrides.dryRun) {"
+         "    return payload;"
+         "  }"
+         ""
+         "  return send(payload, {"
+         "    ...headers,"
+         "    ...overrides.headers,"
+         "  });"
+         "}"
+         ""
+         "export default buildRequest;")
+       "\n")))
+    (should (string= (thing-at-point 'line t) "    return payload;\n"))
+    (should (= (current-column) 11))
+    (should (null minuet-duet--proposed-lines))
+    (should-not minuet-duet-active-mode)))
+
 (ert-deftest minuet-duet-stale-prediction-rejected ()
   "Apply rejects stale prediction when buffer was modified."
   (with-temp-buffer
