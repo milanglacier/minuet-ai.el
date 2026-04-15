@@ -16,6 +16,26 @@
 (require 'minuet)
 (require 'minuet-duet)
 
+(defconst minuet-duet-test--tests-directory
+  (file-name-directory (or load-file-name (buffer-file-name)))
+  "Directory containing the duet ERT test files.")
+
+(defun minuet-duet-test--fixture-path (name)
+  "Return the absolute path to test fixture NAME."
+  (expand-file-name
+   name
+   (expand-file-name "scripts" minuet-duet-test--tests-directory)))
+
+(defun minuet-duet-test--wait-until (predicate timeout message)
+  "Wait until PREDICATE return non-nil or fail after TIMEOUT seconds.
+Use MESSAGE in the assertion failure."
+  (let ((deadline (+ (float-time) timeout)))
+    (while (and (< (float-time) deadline)
+                (not (funcall predicate)))
+      (accept-process-output nil 0.05))
+    (unless (funcall predicate)
+      (ert-fail message))))
+
 ;;;;;
 ;; Duet response parsing tests
 ;;;;;
@@ -148,11 +168,11 @@
     (should (equal result "Hello, world! "))))
 
 (defun minuet-duet-test--chat-input-template ()
-  "Return a custom chat input template used by duet tests."
+  "Return a custom chat input template used by duet test."
   "{{{:greeting}}}! {{{:missing}}}")
 
 (defun minuet-duet-test--chat-input-greeting (context)
-  "Return a greeting derived from CONTEXT for duet tests."
+  "Return a greeting derived from CONTEXT for duet test."
   (format "Hello, %s" (plist-get context :name)))
 
 (ert-deftest minuet-duet-context-empty-buffer ()
@@ -464,6 +484,49 @@
       (should (equal minuet-duet--proposed-lines '("const value = 2;")))
       (should (minuet-duet-visible-p)))))
 
+(ert-deftest minuet-duet-predict-openai-compatible-transport ()
+  "OpenAI-compatible duet requests work through the streaming transport."
+  (with-temp-buffer
+    (insert "return 1")
+    (goto-char (point-max))
+    (let* ((process-environment (copy-sequence process-environment))
+           (plz-curl-program
+            (minuet-duet-test--fixture-path "mock_openai_stream.py"))
+           (minuet-duet-provider 'openai-compatible)
+           (minuet-duet-request-timeout 2)
+           (minuet-duet-editable-region-lines-before 0)
+           (minuet-duet-editable-region-lines-after 0)
+           (response (concat minuet-duet-editable-region-start-marker "\n"
+                             "return 42"
+                             minuet-duet-cursor-position-marker
+                             "\n"
+                             minuet-duet-editable-region-end-marker))
+           (minuet-duet-openai-compatible-options
+            `(:model "fixture-model"
+              :api-key "OPENROUTER_API_KEY"
+              :end-point ,response
+              :name "Fixture"
+              :system ,minuet-duet-default-system
+              :fewshots nil
+              :chat-input ,minuet-duet-default-chat-input
+              :optional nil
+              :transform ())))
+      (setenv "OPENROUTER_API_KEY" "test-key")
+      (unwind-protect
+          (progn
+            (minuet-duet-predict)
+            (minuet-duet-test--wait-until
+             #'minuet-duet-visible-p
+             3
+             "duet preview did not become visible through the transport test")
+            (should (equal minuet-duet--proposed-lines '("return 42")))
+            (minuet-duet-apply)
+            (should (equal (buffer-string) "return 42"))
+            (should (= (current-column) 9))
+            (should-not (minuet-duet-visible-p))
+            (should-not minuet-duet-active-mode))
+        (minuet-duet-dismiss)))))
+
 (ert-deftest minuet-duet-dismiss-clears-state ()
   "Dismiss clears all overlays and state."
   (with-temp-buffer
@@ -521,7 +584,7 @@
       (should (null minuet-duet--proposed-cursor)))))
 
 (ert-deftest minuet-duet-visible-p-with-overlays ()
-  "visible-p returns non-nil when overlays exist."
+  "Visible-p returns non-nil when overlays exist."
   (with-temp-buffer
     (insert "test")
     (setq minuet-duet--overlays (list (make-overlay 1 2)))
