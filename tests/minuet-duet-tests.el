@@ -114,8 +114,8 @@
 (ert-deftest minuet-duet-make-system-prompt-literal-walk ()
   "System prompt placeholders are resolved from the template itself."
   (let* ((template '(:template "A {{{:first}}} B {{{:missing}}} C {{{:first}}}"
-                    :first "value"
-                    :unused "unused {{{:first}}}"))
+                     :first "value"
+                     :unused "unused {{{:first}}}"))
          (result (minuet-duet--make-system-prompt template)))
     (should (equal result "A value B  C value"))))
 
@@ -397,6 +397,48 @@
     (should (null minuet-duet--proposed-cursor))
     (should (null minuet-duet--overlays))
     (should-not minuet-duet-active-mode)))
+
+(ert-deftest minuet-duet-dismiss-removes-after-change-hook ()
+  "Dismiss removes the local duet after-change hook and pending state."
+  (with-temp-buffer
+    (insert "test")
+    (minuet-duet--install-after-change-hook)
+    (setq minuet-duet--pending-seq 42
+          minuet-duet--chars-modified-tick (buffer-chars-modified-tick)
+          minuet-duet--region-start (point-min)
+          minuet-duet--region-end (point-max)
+          minuet-duet--original-lines '("test")
+          minuet-duet--proposed-lines '("done")
+          minuet-duet--proposed-cursor '(:row-offset 0 :col 1))
+    (should minuet-duet--after-change-active)
+    (should (memq #'minuet-duet--on-after-change after-change-functions))
+    (minuet-duet-dismiss)
+    (should-not minuet-duet--after-change-active)
+    (should-not (memq #'minuet-duet--on-after-change after-change-functions))
+    (should (null minuet-duet--pending-seq))
+    (should (null minuet-duet--region-start))
+    (should (null minuet-duet--region-end))
+    (should (null minuet-duet--original-lines))))
+
+(ert-deftest minuet-duet-dismiss-cancels-live-request ()
+  "Dismiss terminates a live pending request before clearing state."
+  (with-temp-buffer
+    (let ((fake-process 'fake-process)
+          (signal-args nil))
+      (setq minuet-duet--current-request fake-process
+            minuet-duet--proposed-lines '("foo")
+            minuet-duet--proposed-cursor '(:row-offset 0 :col 0))
+      (cl-letf (((symbol-function 'process-live-p)
+                 (lambda (process)
+                   (eq process fake-process)))
+                ((symbol-function 'signal-process)
+                 (lambda (process signal)
+                   (setq signal-args (list process signal)))))
+        (minuet-duet-dismiss))
+      (should (equal signal-args (list fake-process 'SIGTERM)))
+      (should (null minuet-duet--current-request))
+      (should (null minuet-duet--proposed-lines))
+      (should (null minuet-duet--proposed-cursor)))))
 
 (ert-deftest minuet-duet-visible-p-with-overlays ()
   "visible-p returns non-nil when overlays exist."
