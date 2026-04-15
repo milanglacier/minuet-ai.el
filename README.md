@@ -478,7 +478,7 @@ Basic usage is manual. Bind the duet commands to your preferred keymaps, then:
 Example config:
 
 ```elisp
-;; minuet and minuet-duet is two separate module
+;; minuet and minuet-duet are two separate modules
 ;; It is recommended to load them separately.
 
 (use-package minuet-duet
