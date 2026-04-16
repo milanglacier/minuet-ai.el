@@ -199,32 +199,50 @@ Use MESSAGE in the assertion failure."
       (should-not (member duplicated-after (car result)))
       (should (= (plist-get (cdr result) :col) (length replacement))))))
 
-(ert-deftest minuet-duet-filter-text-returns-edge-cases ()
-  "Nil TEXT and nil CONTEXT are handled without filtering."
-  (let ((context '(:non-editable-region-before "before"
-                   :non-editable-region-after "after")))
-    (should (null (minuet-duet--filter-text nil context)))
-    (should (equal (minuet-duet--filter-text "unchanged" nil) "unchanged"))))
-
-(ert-deftest minuet-duet-filter-text-trims-non-editable-overlaps ()
-  "Duplicated text from neighboring non-editable regions is trimmed."
+(ert-deftest minuet-duet-parse-trims-prefix-before-recording-cursor ()
+  "Duplicated prefix context is trimmed before cursor position is recorded."
   (let* ((minuet-duet-filter-region-before-length 3)
-         (minuet-duet-filter-region-after-length 3)
          (context '(:non-editable-region-before "left prefix"
-                    :non-editable-region-after "suffix right"))
-         (text "prefix<cursor_position>body suffix"))
-    (should
-     (equal (minuet-duet--filter-text text context)
-            "<cursor_position>body "))))
+                    :non-editable-region-after ""))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "prefix" minuet-duet-cursor-position-marker
+                           "body\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 0))))
 
-(ert-deftest minuet-duet-filter-text-respects-minimum-match-length ()
-  "Overlaps shorter than the configured thresholds are kept."
-  (let* ((minuet-duet-filter-region-before-length 10)
-         (minuet-duet-filter-region-after-length 10)
+(ert-deftest minuet-duet-parse-trims-suffix-after-removing-cursor ()
+  "Duplicated suffix context is trimmed after removing the cursor marker."
+  (let* ((minuet-duet-filter-region-after-length 3)
+         (context '(:non-editable-region-before ""
+                    :non-editable-region-after "suffix right"))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "body suf" minuet-duet-cursor-position-marker
+                           "fix\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body ")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 5))))
+
+(ert-deftest minuet-duet-parse-clamps-cursor-after-suffix-trimming ()
+  "Cursor moves to the final text end when suffix trimming removes its index."
+  (let* ((minuet-duet-filter-region-after-length 3)
          (context '(:non-editable-region-before "left prefix"
                     :non-editable-region-after "suffix right"))
-         (text "prefix<cursor_position>body suffix"))
-    (should (equal (minuet-duet--filter-text text context) text))))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "body suffix"
+                           minuet-duet-cursor-position-marker "\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body ")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 5))))
 
 ;;;;;
 ;; Context extraction tests

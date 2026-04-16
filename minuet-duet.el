@@ -451,34 +451,6 @@ Returns a plist with:
           :region-start region-start
           :region-end region-end)))
 
-(cl-defun minuet-duet--filter-text (text context)
-  "Filter TEXT by trimming duplicated content from non-editable regions.
-CONTEXT is coming from `minuet-duet--build-context'."
-  (when (null text)
-    (cl-return-from minuet-duet--filter-text nil))
-  (when (null context)
-    (cl-return-from minuet-duet--filter-text text))
-  (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
-              (non-editable-before (string-trim-right non-editable-before "\n"))
-              (non-editable-after (plist-get context :non-editable-region-after))
-              (non-editable-after (string-trim-left non-editable-after "\n"))
-              (filtered text))
-    ;; Filter against non-editable-before (trim from prefix)
-    (when-let* ((before non-editable-before)
-                (should-filter (> minuet-duet-filter-region-before-length 0))
-                (match (minuet-find-longest-match filtered before))
-                (should-filter (and (not (string-empty-p match))
-                                    (>= (length match) minuet-duet-filter-region-before-length))))
-      (setq filtered (substring filtered (length match))))
-    ;; Filter against non-editable-after (trim from suffix)
-    (when-let* ((after non-editable-after)
-                (should-filter (> minuet-duet-filter-region-after-length 0))
-                (match (minuet-find-longest-match after filtered))
-                (should-filter (and (not (string-empty-p match))
-                                    (>= (length match) minuet-duet-filter-region-after-length))))
-      (setq filtered (substring filtered 0 (- (length filtered) (length match)))))
-    filtered))
-
 ;;;;;
 ;; Response parser
 ;;;;;
@@ -522,27 +494,45 @@ Returns nil on failure and logs the reason."
            (inner (substring text s-end e-start)))
       ;; Trim one leading and one trailing newline
       (setq inner (string-trim inner "\n" "\n"))
-      ;; Filter duplicated text from non-editable regions
-      (setq inner (minuet-duet--filter-text inner context))
-      (when (null inner)
-        (minuet--log "Minuet duet: editable region is empty after filtering")
-        (cl-return-from minuet-duet--parse-response nil))
+      ;; Trim duplicated prefix before recording cursor position.
+      (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
+                  (non-editable-before (string-trim-right non-editable-before "\n"))
+                  (should-filter (> minuet-duet-filter-region-before-length 0))
+                  (match (minuet-find-longest-match inner non-editable-before))
+                  (should-filter (and (not (string-empty-p match))
+                                      (>= (length match)
+                                          minuet-duet-filter-region-before-length))))
+        (setq inner (substring inner (length match))))
       ;; Validate cursor marker inside inner
       (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
         (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
                      minuet-show-error-message-on-minibuffer)
         (cl-return-from minuet-duet--parse-response nil))
-      ;; Split at cursor
+      ;; Record cursor, remove marker, then trim duplicated suffix.
       (let* ((c-pos (cl-search cursor-marker inner))
              (before (substring inner 0 c-pos))
              (after (substring inner (+ c-pos (length cursor-marker))))
-             (text-without-cursor (concat before after))
-             (cursor-lines (split-string before "\n"))
-             (replacement-lines (split-string text-without-cursor "\n"))
-             (row-offset (1- (length cursor-lines)))
-             (col (length (car (last cursor-lines)))))
-        (cons replacement-lines
-              (list :row-offset row-offset :col col))))))
+             (text-without-cursor (concat before after)))
+        (when-let* ((non-editable-after (plist-get context :non-editable-region-after))
+                    (non-editable-after (string-trim-left non-editable-after "\n"))
+                    (should-filter (> minuet-duet-filter-region-after-length 0))
+                    (match (minuet-find-longest-match non-editable-after
+                                                      text-without-cursor))
+                    (should-filter (and (not (string-empty-p match))
+                                        (>= (length match)
+                                            minuet-duet-filter-region-after-length))))
+          (setq text-without-cursor
+                (substring text-without-cursor
+                           0 (- (length text-without-cursor) (length match)))))
+        (when (> c-pos (length text-without-cursor))
+          (setq c-pos (length text-without-cursor)))
+        (let* ((cursor-prefix (substring text-without-cursor 0 c-pos))
+               (cursor-lines (split-string cursor-prefix "\n"))
+               (replacement-lines (split-string text-without-cursor "\n"))
+               (row-offset (1- (length cursor-lines)))
+               (col (length (car (last cursor-lines)))))
+          (cons replacement-lines
+                (list :row-offset row-offset :col col)))))))
 
 ;;;;;
 ;; Preview rendering
