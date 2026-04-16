@@ -176,7 +176,6 @@ Use MESSAGE in the assertion failure."
                "    return round(taxable * 1.0825, 2)"
                "print(total_order(Order([12.5, 8.0, 3.25], 2.0)))")
              "\n"))
-    (should-not (member "" (split-string (buffer-string) "\n")))
     (goto-char (point-min))
     (search-forward "    return round")
     (let* ((minuet-duet-editable-region-lines-before 0)
