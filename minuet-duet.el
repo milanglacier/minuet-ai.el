@@ -78,6 +78,28 @@
   "Character used to render the predicted cursor position."
   :type 'string)
 
+(defcustom minuet-duet-filter-region-before-length 30
+  "Minimum match length to trigger prefix filtering in duet editable region.
+
+When the beginning of the editable region text matches the end of the
+non-editable region before it, and the match length meets or exceeds
+this threshold, the overlapping portion is trimmed from the editable
+region text.
+
+Set to 0 to disable prefix filtering."
+  :type 'integer)
+
+(defcustom minuet-duet-filter-region-after-length 30
+  "Minimum match length to trigger suffix filtering in duet editable region.
+
+When the end of the editable region text matches the beginning of the
+non-editable region after it, and the match length meets or exceeds
+this threshold, the overlapping portion is trimmed from the editable
+region text.
+
+Set to 0 to disable suffix filtering."
+  :type 'integer)
+
 (defvar minuet-duet-active-mode-map
   (let ((map (make-sparse-keymap))) map)
   "Keymap used when `minuet-duet-active-mode' is enabled.")
@@ -429,6 +451,36 @@ Returns a plist with:
           :region-start region-start
           :region-end region-end)))
 
+(cl-defun minuet-duet--filter-text (text context)
+  "Filter TEXT by trimming duplicated content from non-editable regions.
+CONTEXT is coming from `minuet-duet--build-context'."
+  (when (null text)
+    (cl-return-from minuet-duet--filter-text nil))
+  (when (null context)
+    (cl-return-from minuet-duet--filter-text text))
+  (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
+              (non-editable-before (string-trim-right non-editable-before "\n"))
+              (non-editable-after (plist-get context :non-editable-region-after))
+              (non-editable-after (string-trim-left non-editable-after "\n"))
+              (filtered text))
+    ;; Filter against non-editable-before (trim from prefix)
+    (when-let* ((before non-editable-before)
+                (should-filter (> minuet-duet-filter-region-before-length 0))
+                (match (minuet-find-longest-match filtered before))
+                (should-filter (and (not (string-empty-p match))
+                                    (>= (length match) minuet-duet-filter-region-before-length))))
+      (setq filtered (substring filtered (length match))))
+    ;; Filter against non-editable-after (trim from suffix)
+    (when-let* ((after non-editable-after)
+                (should-filter (> minuet-duet-filter-region-after-length 0))
+                (match (minuet-find-longest-match after filtered))
+                (should-filter (and (not (string-empty-p match))
+                                    (>= (length match) minuet-duet-filter-region-after-length))))
+      (setq filtered (substring filtered 0 (- (length filtered) (length match)))))
+    (when (not (string= text filtered))
+      (message "detect non-common match and trim"))
+    filtered))
+
 ;;;;;
 ;; Response parser
 ;;;;;
@@ -442,8 +494,11 @@ Returns a plist with:
       (setq start (+ start (length needle))))
     count))
 
-(cl-defun minuet-duet--parse-response (text)
+(cl-defun minuet-duet--parse-response (text &optional context)
   "Parse a duet LLM response TEXT.
+CONTEXT is an optional plist with :non-editable-region-before and
+:non-editable-region-after fields, used to filter duplicated text
+from the editable region.
 Returns (LINES . CURSOR) on success where LINES is a list of
 replacement strings and CURSOR is (:row-offset N :col N).
 Returns nil on failure and logs the reason."
@@ -472,6 +527,11 @@ Returns nil on failure and logs the reason."
         (setq inner (substring inner 1)))
       (when (and (> (length inner) 0) (= (aref inner (1- (length inner))) ?\n))
         (setq inner (substring inner 0 -1)))
+      ;; Filter duplicated text from non-editable regions
+      (setq inner (minuet-duet--filter-text inner context))
+      (when (null inner)
+        (minuet--log "Minuet duet: editable region is empty after filtering")
+        (cl-return-from minuet-duet--parse-response nil))
       ;; Validate cursor marker inside inner
       (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
         (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
@@ -908,11 +968,11 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
            (when (eq minuet-duet--pending-seq seq)
              (setq minuet-duet--pending-seq nil)
              (cond
-             ((not text) nil)
+              ((not text) nil)
               ((/= (buffer-chars-modified-tick) chars-modified-tick)
                (minuet--log "Minuet duet: result arrived after buffer changed; discarded."))
               (t
-               (if-let* ((parsed (minuet-duet--parse-response text)))
+               (if-let* ((parsed (minuet-duet--parse-response text context)))
                    (progn
                      (setq minuet-duet--chars-modified-tick chars-modified-tick
                            minuet-duet--region-start region-start

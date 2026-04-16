@@ -115,6 +115,118 @@ Use MESSAGE in the assertion failure."
   (should (null (minuet-duet--parse-response "")))
   (should (null (minuet-duet--parse-response nil))))
 
+(ert-deftest minuet-duet-parse-filters-duplicated-typescript-context ()
+  "Parse a realistic TypeScript edit when the response repeats context lines."
+  (with-temp-buffer
+    (insert (mapconcat
+             #'identity
+             '("import { readFile } from \"node:fs/promises\";"
+               ""
+               "type User = {"
+               "  id: string;"
+               "  name: string;"
+               "};"
+               ""
+               "export async function loadUsers(path: string) {"
+               "  const raw = await readFile(path, \"utf8\");"
+               "  const rows = JSON.parse(raw);"
+               "  return rows.map((row: Record<string, unknown>) => ({"
+               "    id: String(row.id),"
+               "    name: String(row.name),"
+               "  }));"
+               "}")
+             "\n"))
+    (goto-char (point-min))
+    (search-forward "  const rows")
+    (let* ((minuet-duet-editable-region-lines-before 0)
+           (minuet-duet-editable-region-lines-after 0)
+           (context (minuet-duet--build-context))
+           (duplicated-before
+            "  const raw = await readFile(path, \"utf8\");")
+           (duplicated-after
+            "  return rows.map((row: Record<string, unknown>) => ({")
+           (replacement
+            "  const rows = JSON.parse(raw) as Array<Record<string, unknown>>;")
+           (response
+            (concat minuet-duet-editable-region-start-marker "\n"
+                    duplicated-before "\n"
+                    replacement minuet-duet-cursor-position-marker "\n"
+                    duplicated-after "\n"
+                    minuet-duet-editable-region-end-marker))
+           (result (minuet-duet--parse-response response context)))
+      (should result)
+      (should (member replacement (car result)))
+      (should-not (member duplicated-before (car result)))
+      (should-not (member duplicated-after (car result)))
+      (should (= (plist-get (cdr result) :col) (length replacement))))))
+
+(ert-deftest minuet-duet-parse-filters-duplicated-python-context ()
+  "Parse a realistic Python edit when the response repeats surrounding code."
+  (with-temp-buffer
+    (insert (mapconcat
+             #'identity
+             '("from dataclasses import dataclass"
+               "@dataclass"
+               "class Order:"
+               "    items: list[float]"
+               "    discount: float"
+               "def total_order(order: Order) -> float:"
+               "    subtotal = sum(order.items)"
+               "    taxable = max(subtotal - order.discount, 0.0)"
+               "    return round(taxable * 1.0825, 2)"
+               "print(total_order(Order([12.5, 8.0, 3.25], 2.0)))")
+             "\n"))
+    (should-not (member "" (split-string (buffer-string) "\n")))
+    (goto-char (point-min))
+    (search-forward "    return round")
+    (let* ((minuet-duet-editable-region-lines-before 0)
+           (minuet-duet-editable-region-lines-after 0)
+           (context (minuet-duet--build-context))
+           (duplicated-before
+            "    taxable = max(subtotal - order.discount, 0.0)")
+           (duplicated-after
+            "print(total_order(Order([12.5, 8.0, 3.25], 2.0)))")
+           (replacement "    return round(taxable * 1.0925, 2)")
+           (response
+            (concat minuet-duet-editable-region-start-marker "\n"
+                    duplicated-before "\n"
+                    replacement minuet-duet-cursor-position-marker "\n"
+                    duplicated-after "\n"
+                    minuet-duet-editable-region-end-marker))
+           (result (minuet-duet--parse-response response context)))
+      (should result)
+      (should (member replacement (car result)))
+      (should-not (member duplicated-before (car result)))
+      (should-not (member duplicated-after (car result)))
+      (should (= (plist-get (cdr result) :col) (length replacement))))))
+
+(ert-deftest minuet-duet-filter-text-returns-edge-cases ()
+  "Nil TEXT and nil CONTEXT are handled without filtering."
+  (let ((context '(:non-editable-region-before "before"
+                   :non-editable-region-after "after")))
+    (should (null (minuet-duet--filter-text nil context)))
+    (should (equal (minuet-duet--filter-text "unchanged" nil) "unchanged"))))
+
+(ert-deftest minuet-duet-filter-text-trims-non-editable-overlaps ()
+  "Duplicated text from neighboring non-editable regions is trimmed."
+  (let* ((minuet-duet-filter-region-before-length 3)
+         (minuet-duet-filter-region-after-length 3)
+         (context '(:non-editable-region-before "left prefix"
+                    :non-editable-region-after "suffix right"))
+         (text "prefix<cursor_position>body suffix"))
+    (should
+     (equal (minuet-duet--filter-text text context)
+            "<cursor_position>body "))))
+
+(ert-deftest minuet-duet-filter-text-respects-minimum-match-length ()
+  "Overlaps shorter than the configured thresholds are kept."
+  (let* ((minuet-duet-filter-region-before-length 10)
+         (minuet-duet-filter-region-after-length 10)
+         (context '(:non-editable-region-before "left prefix"
+                    :non-editable-region-after "suffix right"))
+         (text "prefix<cursor_position>body suffix"))
+    (should (equal (minuet-duet--filter-text text context) text))))
+
 ;;;;;
 ;; Context extraction tests
 ;;;;;
