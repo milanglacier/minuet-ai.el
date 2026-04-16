@@ -523,10 +523,7 @@ Returns nil on failure and logs the reason."
            (e-start (cl-search end-marker text :start2 s-end))
            (inner (substring text s-end e-start)))
       ;; Trim one leading and one trailing newline
-      (when (and (> (length inner) 0) (= (aref inner 0) ?\n))
-        (setq inner (substring inner 1)))
-      (when (and (> (length inner) 0) (= (aref inner (1- (length inner))) ?\n))
-        (setq inner (substring inner 0 -1)))
+      (setq inner (string-trim inner "\n" "\n"))
       ;; Filter duplicated text from non-editable regions
       (setq inner (minuet-duet--filter-text inner context))
       (when (null inner)
