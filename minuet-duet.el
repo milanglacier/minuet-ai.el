@@ -477,8 +477,6 @@ CONTEXT is coming from `minuet-duet--build-context'."
                 (should-filter (and (not (string-empty-p match))
                                     (>= (length match) minuet-duet-filter-region-after-length))))
       (setq filtered (substring filtered 0 (- (length filtered) (length match)))))
-    (when (not (string= text filtered))
-      (message "detect non-common match and trim"))
     filtered))
 
 ;;;;;
@@ -956,7 +954,6 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
          (seq (cl-incf minuet-duet--request-seq)))
     (setq minuet-duet--pending-seq seq)
     (minuet-duet--install-after-change-hook)
-    (minuet--log "Minuet duet started")
     (funcall
      complete-fn context
      (lambda (text)
