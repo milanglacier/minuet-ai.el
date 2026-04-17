@@ -42,9 +42,9 @@ Use MESSAGE in the assertion failure."
 
 (ert-deftest minuet-duet-parse-valid ()
   "Valid response with one cursor marker."
-  (let* ((text (concat "<editable_region_start>\n"
-                       "hello <cursor_position>world\n"
-                       "<editable_region_end>"))
+  (let* ((text (concat minuet-duet-editable-region-start-marker "\n"
+                       "hello " minuet-duet-cursor-position-marker "world\n"
+                       minuet-duet-editable-region-end-marker))
          (result (minuet-duet--parse-response text)))
     (should result)
     (should (equal (car result) '("hello world")))
@@ -53,11 +53,11 @@ Use MESSAGE in the assertion failure."
 
 (ert-deftest minuet-duet-parse-multiline ()
   "Valid multi-line response."
-  (let* ((text (concat "<editable_region_start>\n"
+  (let* ((text (concat minuet-duet-editable-region-start-marker "\n"
                        "line1\n"
-                       "line2<cursor_position>\n"
+                       "line2" minuet-duet-cursor-position-marker "\n"
                        "line3\n"
-                       "<editable_region_end>"))
+                       minuet-duet-editable-region-end-marker))
          (result (minuet-duet--parse-response text)))
     (should result)
     (should (equal (car result) '("line1" "line2" "line3")))
@@ -66,47 +66,51 @@ Use MESSAGE in the assertion failure."
 
 (ert-deftest minuet-duet-parse-missing-start-marker ()
   "Missing start marker returns nil."
-  (let ((text "hello <cursor_position>world\n<editable_region_end>"))
+  (let ((text (concat "hello " minuet-duet-cursor-position-marker "world\n"
+                      minuet-duet-editable-region-end-marker)))
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-missing-end-marker ()
   "Missing end marker returns nil."
-  (let ((text "<editable_region_start>\nhello <cursor_position>world"))
+  (let ((text (concat minuet-duet-editable-region-start-marker
+                      "\nhello " minuet-duet-cursor-position-marker "world")))
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-duplicate-start-marker ()
   "Duplicate start markers returns nil."
-  (let ((text (concat "<editable_region_start>\n<editable_region_start>\n"
-                      "hello <cursor_position>world\n"
-                      "<editable_region_end>")))
+  (let ((text (concat minuet-duet-editable-region-start-marker "\n"
+                      minuet-duet-editable-region-start-marker "\n"
+                      "hello " minuet-duet-cursor-position-marker "world\n"
+                      minuet-duet-editable-region-end-marker)))
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-missing-cursor-marker ()
   "Missing cursor marker returns nil."
-  (let ((text (concat "<editable_region_start>\n"
+  (let ((text (concat minuet-duet-editable-region-start-marker "\n"
                       "hello world\n"
-                      "<editable_region_end>")))
+                      minuet-duet-editable-region-end-marker)))
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-duplicate-cursor-marker ()
   "Duplicate cursor markers returns nil."
-  (let ((text (concat "<editable_region_start>\n"
-                      "hello <cursor_position>wor<cursor_position>ld\n"
-                      "<editable_region_end>")))
+  (let ((text (concat minuet-duet-editable-region-start-marker "\n"
+                      "hello " minuet-duet-cursor-position-marker
+                      "wor" minuet-duet-cursor-position-marker "ld\n"
+                      minuet-duet-editable-region-end-marker)))
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-newline-trimming ()
   "Leading and trailing newlines inside markers are trimmed."
   ;; Two leading newlines: first trimmed, second kept as empty first line
-  (let* ((text (concat "<editable_region_start>\n\n"
-                       "<cursor_position>hello\n"
-                       "<editable_region_end>"))
+  (let* ((text (concat minuet-duet-editable-region-start-marker "\n\n"
+                       minuet-duet-cursor-position-marker "hello\n"
+                       minuet-duet-editable-region-end-marker))
          (result (minuet-duet--parse-response text)))
     (should result)
     ;; The inner text after removing first \n is "\n<cursor>hello"
     ;; Trailing \n is also trimmed, so inner = "\n<cursor>hello" -> "" and "hello"
-    ;; Actually: inner after first trim = "\n<cursor_position>hello"
-    ;; trailing trim: "\n<cursor_position>hello" (no trailing \n to trim)
+    ;; Actually: inner after first trim = "\n<cursor>hello"
+    ;; trailing trim: "\n<cursor>hello" (no trailing \n to trim)
     ;; So lines = ("" "hello"), cursor at line 1 col 0
     (should (equal (car result) '("" "hello")))))
 
@@ -320,8 +324,14 @@ Use MESSAGE in the assertion failure."
              (regexp-quote minuet-duet-editable-region-start-marker)
              result))
     (should (string-match-p
+             (regexp-quote minuet-duet-editable-region-end-marker)
+             result))
+    (should (string-match-p
              (regexp-quote minuet-duet-cursor-position-marker)
-             result))))
+             result))
+    (should-not (string-match-p "<editable_region_start>" result))
+    (should-not (string-match-p "<editable_region_end>" result))
+    (should-not (string-match-p "<cursor_position>" result))))
 
 (ert-deftest minuet-duet-make-system-prompt-literal-walk ()
   "System prompt placeholders are resolved from the template itself."

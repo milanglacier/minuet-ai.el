@@ -62,15 +62,15 @@
   "Number of lines after point to include in the editable region."
   :type 'integer)
 
-(defcustom minuet-duet-editable-region-start-marker "<editable_region_start>"
+(defcustom minuet-duet-editable-region-start-marker "<editable_region>"
   "Marker indicating the start of the editable region."
   :type 'string)
 
-(defcustom minuet-duet-editable-region-end-marker "<editable_region_end>"
+(defcustom minuet-duet-editable-region-end-marker "</editable_region>"
   "Marker indicating the end of the editable region."
   :type 'string)
 
-(defcustom minuet-duet-cursor-position-marker "<cursor_position>"
+(defcustom minuet-duet-cursor-position-marker "<cursor_position/>"
   "Marker indicating the cursor position."
   :type 'string)
 
