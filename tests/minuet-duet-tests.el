@@ -85,11 +85,22 @@ Use MESSAGE in the assertion failure."
     (should (null (minuet-duet--parse-response text)))))
 
 (ert-deftest minuet-duet-parse-missing-cursor-marker ()
-  "Missing cursor marker returns nil."
+  "Missing cursor marker falls back to the editable region end."
   (let ((text (concat minuet-duet-editable-region-start-marker "\n"
                       "hello world\n"
-                      minuet-duet-editable-region-end-marker)))
-    (should (null (minuet-duet--parse-response text)))))
+                      minuet-duet-editable-region-end-marker))
+        messages)
+    (cl-letf (((symbol-function 'minuet--log)
+               (lambda (message &optional _message-p)
+                 (push message messages)
+                 nil)))
+      (let ((result (minuet-duet--parse-response text)))
+        (should result)
+        (should (equal (car result) '("hello world")))
+        (should (= (plist-get (cdr result) :row-offset) 0))
+        (should (= (plist-get (cdr result) :col) 11))
+        (should (member "Minuet duet: cursor marker missing; using editable region end"
+                        messages))))))
 
 (ert-deftest minuet-duet-parse-duplicate-cursor-marker ()
   "Duplicate cursor markers returns nil."

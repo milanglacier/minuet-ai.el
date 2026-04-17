@@ -464,6 +464,92 @@ Returns a plist with:
       (setq start (+ start (length needle))))
     count))
 
+(defun minuet-duet--extract-editable-region (text)
+  "Return the editable region content from duet response TEXT.
+The returned content has one formatting newline trimmed from each side.
+Return nil and log when the editable region markers are invalid."
+  (let ((start-marker minuet-duet-editable-region-start-marker)
+        (end-marker minuet-duet-editable-region-end-marker))
+    (cond
+     ((/= (minuet-duet--count-occurrences text start-marker) 1)
+      (minuet--log "Minuet duet: expected exactly one editable region start marker:"
+                   minuet-show-error-message-on-minibuffer)
+      (minuet--log text)
+      nil)
+     ((/= (minuet-duet--count-occurrences text end-marker) 1)
+      (minuet--log "Minuet duet: expected exactly one editable region end marker:"
+                   minuet-show-error-message-on-minibuffer)
+      (minuet--log text)
+      nil)
+     (t
+      (let* ((s-start (cl-search start-marker text))
+             (s-end (+ s-start (length start-marker)))
+             (e-start (cl-search end-marker text :start2 s-end))
+             (inner (substring text s-end e-start)))
+        ;; Trim one leading and one trailing newline as they are part of the markers' formatting.
+        (string-trim inner "\n" "\n"))))))
+
+(defun minuet-duet--trim-duplicated-prefix (inner context)
+  "Remove duplicated non-editable prefix CONTEXT from INNER."
+  (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
+              (non-editable-before (string-trim-right non-editable-before "\n"))
+              (should-filter (> minuet-duet-filter-region-before-length 0))
+              (match (minuet-find-longest-match inner non-editable-before))
+              (should-filter (and (not (string-empty-p match))
+                                  (>= (length match)
+                                      minuet-duet-filter-region-before-length))))
+    (setq inner (substring inner (length match)))
+    ;; Drop the separator newline left behind by line-oriented prefix dedup.
+    (setq inner (string-trim-left inner "\n")))
+  inner)
+
+(defun minuet-duet--remove-cursor-marker (inner)
+  "Return (TEXT . CURSOR-POS) for editable region INNER.
+If INNER has no cursor marker, place the cursor at the end and log the
+fallback.  Return nil and log when INNER has multiple cursor markers."
+  (let* ((cursor-marker minuet-duet-cursor-position-marker)
+         (cursor-count (minuet-duet--count-occurrences inner cursor-marker))
+         (c-pos (cl-search cursor-marker inner)))
+    (cond
+     ((= cursor-count 0)
+      (minuet--log "Minuet duet: cursor marker missing; using editable region end")
+      (minuet--log inner)
+      (cons inner (length inner)))
+     ((= cursor-count 1)
+      (cons (concat (substring inner 0 c-pos)
+                    (substring inner (+ c-pos (length cursor-marker))))
+            c-pos))
+     (t
+      (minuet--log "Minuet duet: expected at most one cursor marker inside editable region"
+                   minuet-show-error-message-on-minibuffer)
+      (minuet--log inner)
+      nil))))
+
+(defun minuet-duet--trim-duplicated-suffix (text context)
+  "Remove duplicated non-editable suffix CONTEXT from TEXT."
+  (when-let* ((non-editable-after (plist-get context :non-editable-region-after))
+              (non-editable-after (string-trim-left non-editable-after "\n"))
+              (should-filter (> minuet-duet-filter-region-after-length 0))
+              (match (minuet-find-longest-match non-editable-after text))
+              (should-filter (and (not (string-empty-p match))
+                                  (>= (length match)
+                                      minuet-duet-filter-region-after-length))))
+    (setq text (substring text 0 (- (length text) (length match))))
+    ;; Drop the separator newline left behind by line-oriented suffix dedup.
+    (setq text (string-trim-right text "\n")))
+  text)
+
+(defun minuet-duet--build-lines-and-cursor-result (text cursor-pos)
+  "Build the parser return value for TEXT with cursor at CURSOR-POS."
+  (setq cursor-pos (min cursor-pos (length text)))
+  (let* ((cursor-prefix (substring text 0 cursor-pos))
+         (cursor-lines (split-string cursor-prefix "\n"))
+         (replacement-lines (split-string text "\n"))
+         (row-offset (1- (length cursor-lines)))
+         (col (length (car (last cursor-lines)))))
+    (cons replacement-lines
+          (list :row-offset row-offset :col col))))
+
 (cl-defun minuet-duet--parse-response (text &optional context)
   "Parse a duet LLM response TEXT.
 CONTEXT is an optional plist with :non-editable-region-before and
@@ -475,72 +561,14 @@ Returns nil on failure and logs the reason."
   (when (or (not (stringp text)) (string-empty-p text))
     (minuet--log "Minuet duet: empty response")
     (cl-return-from minuet-duet--parse-response nil))
-  (let ((start-marker minuet-duet-editable-region-start-marker)
-        (end-marker minuet-duet-editable-region-end-marker)
-        (cursor-marker minuet-duet-cursor-position-marker))
-    ;; Validate marker counts
-    (unless (= (minuet-duet--count-occurrences text start-marker) 1)
-      (minuet--log "Minuet duet: expected exactly one editable region start marker:"
-                   minuet-show-error-message-on-minibuffer)
-      (minuet--log text)
-      (cl-return-from minuet-duet--parse-response nil))
-    (unless (= (minuet-duet--count-occurrences text end-marker) 1)
-      (minuet--log "Minuet duet: expected exactly one editable region end marker:"
-                   minuet-show-error-message-on-minibuffer)
-      (minuet--log text)
-      (cl-return-from minuet-duet--parse-response nil))
-    ;; Extract inner text
-    (let* ((s-start (cl-search start-marker text))
-           (s-end (+ s-start (length start-marker)))
-           (e-start (cl-search end-marker text :start2 s-end))
-           (inner (substring text s-end e-start)))
-      ;; Trim one leading and one trailing newline as they are part of the markers' formatting
-      (setq inner (string-trim inner "\n" "\n"))
-      ;; Trim duplicated prefix before recording cursor position.
-      (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
-                  (non-editable-before (string-trim-right non-editable-before "\n"))
-                  (should-filter (> minuet-duet-filter-region-before-length 0))
-                  (match (minuet-find-longest-match inner non-editable-before))
-                  (should-filter (and (not (string-empty-p match))
-                                      (>= (length match)
-                                          minuet-duet-filter-region-before-length))))
-        (setq inner (substring inner (length match)))
-        ;; Drop the separator newline left behind by line-oriented prefix dedup.
-        (setq inner (string-trim-left inner "\n")))
-      ;; Validate cursor marker inside inner
-      (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
-        (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
-                     minuet-show-error-message-on-minibuffer)
-        (minuet--log inner)
-        (cl-return-from minuet-duet--parse-response nil))
-      ;; Record cursor, remove marker, then trim duplicated suffix.
-      (let* ((c-pos (cl-search cursor-marker inner))
-             (before (substring inner 0 c-pos))
-             (after (substring inner (+ c-pos (length cursor-marker))))
-             (text-without-cursor (concat before after)))
-        (when-let* ((non-editable-after (plist-get context :non-editable-region-after))
-                    (non-editable-after (string-trim-left non-editable-after "\n"))
-                    (should-filter (> minuet-duet-filter-region-after-length 0))
-                    (match (minuet-find-longest-match non-editable-after
-                                                      text-without-cursor))
-                    (should-filter (and (not (string-empty-p match))
-                                        (>= (length match)
-                                            minuet-duet-filter-region-after-length))))
-          (setq text-without-cursor
-                (substring text-without-cursor
-                           0 (- (length text-without-cursor) (length match))))
-          ;; Drop the separator newline left behind by line-oriented suffix dedup.
-          (setq text-without-cursor
-                (string-trim-right text-without-cursor "\n")))
-        (when (> c-pos (length text-without-cursor))
-          (setq c-pos (length text-without-cursor)))
-        (let* ((cursor-prefix (substring text-without-cursor 0 c-pos))
-               (cursor-lines (split-string cursor-prefix "\n"))
-               (replacement-lines (split-string text-without-cursor "\n"))
-               (row-offset (1- (length cursor-lines)))
-               (col (length (car (last cursor-lines)))))
-          (cons replacement-lines
-                (list :row-offset row-offset :col col)))))))
+  (when-let* ((inner (minuet-duet--extract-editable-region text))
+              (inner (minuet-duet--trim-duplicated-prefix inner context))
+              (cursor-state (minuet-duet--remove-cursor-marker inner))
+              (text-without-cursor
+               (minuet-duet--trim-duplicated-suffix (car cursor-state)
+                                                    context)))
+    (minuet-duet--build-lines-and-cursor-result text-without-cursor
+                                                (cdr cursor-state))))
 
 ;;;;;
 ;; Preview rendering
