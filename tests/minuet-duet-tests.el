@@ -214,6 +214,37 @@ Use MESSAGE in the assertion failure."
     (should (= (plist-get (cdr result) :row-offset) 0))
     (should (= (plist-get (cdr result) :col) 0))))
 
+(ert-deftest minuet-duet-parse-trims-prefix-boundary-line ()
+  "Duplicated prefix trimming also removes the boundary newline."
+  (let* ((minuet-duet-filter-region-before-length 3)
+         (context '(:non-editable-region-before "left\nprefix"
+                    :non-editable-region-after ""))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "prefix\n"
+                           minuet-duet-cursor-position-marker
+                           "body\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 0))))
+
+(ert-deftest minuet-duet-parse-preserves-leading-blank-line-without-prefix-trim ()
+  "Leading blank lines are preserved when prefix deduplication does not trim."
+  (let* ((minuet-duet-filter-region-before-length 3)
+         (context '(:non-editable-region-before "unrelated"
+                    :non-editable-region-after ""))
+         (response (concat minuet-duet-editable-region-start-marker "\n\n"
+                           minuet-duet-cursor-position-marker
+                           "body\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("" "body")))
+    (should (= (plist-get (cdr result) :row-offset) 1))
+    (should (= (plist-get (cdr result) :col) 0))))
+
 (ert-deftest minuet-duet-parse-trims-suffix-after-removing-cursor ()
   "Duplicated suffix context is trimmed after removing the cursor marker."
   (let* ((minuet-duet-filter-region-after-length 3)
@@ -228,6 +259,38 @@ Use MESSAGE in the assertion failure."
     (should (equal (car result) '("body ")))
     (should (= (plist-get (cdr result) :row-offset) 0))
     (should (= (plist-get (cdr result) :col) 5))))
+
+(ert-deftest minuet-duet-parse-trims-suffix-boundary-line ()
+  "Duplicated suffix trimming also removes the boundary newline."
+  (let* ((minuet-duet-filter-region-after-length 3)
+         (context '(:non-editable-region-before ""
+                    :non-editable-region-after "suffix\nright"))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "body"
+                           minuet-duet-cursor-position-marker
+                           "\nsuffix\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 4))))
+
+(ert-deftest minuet-duet-parse-preserves-trailing-blank-line-without-suffix-trim ()
+  "Trailing blank lines are preserved when suffix deduplication does not trim."
+  (let* ((minuet-duet-filter-region-after-length 3)
+         (context '(:non-editable-region-before ""
+                    :non-editable-region-after "unrelated"))
+         (response (concat minuet-duet-editable-region-start-marker "\n"
+                           "body"
+                           minuet-duet-cursor-position-marker
+                           "\n\n"
+                           minuet-duet-editable-region-end-marker))
+         (result (minuet-duet--parse-response response context)))
+    (should result)
+    (should (equal (car result) '("body" "")))
+    (should (= (plist-get (cdr result) :row-offset) 0))
+    (should (= (plist-get (cdr result) :col) 4))))
 
 (ert-deftest minuet-duet-parse-clamps-cursor-after-suffix-trimming ()
   "Cursor moves to the final text end when suffix trimming removes its index."

@@ -492,7 +492,7 @@ Returns nil on failure and logs the reason."
            (s-end (+ s-start (length start-marker)))
            (e-start (cl-search end-marker text :start2 s-end))
            (inner (substring text s-end e-start)))
-      ;; Trim one leading and one trailing newline
+      ;; Trim one leading and one trailing newline as they are part of the markers' formatting
       (setq inner (string-trim inner "\n" "\n"))
       ;; Trim duplicated prefix before recording cursor position.
       (when-let* ((non-editable-before (plist-get context :non-editable-region-before))
@@ -502,7 +502,9 @@ Returns nil on failure and logs the reason."
                   (should-filter (and (not (string-empty-p match))
                                       (>= (length match)
                                           minuet-duet-filter-region-before-length))))
-        (setq inner (substring inner (length match))))
+        (setq inner (substring inner (length match)))
+        ;; Drop the separator newline left behind by line-oriented prefix dedup.
+        (setq inner (string-trim-left inner "\n")))
       ;; Validate cursor marker inside inner
       (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
         (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
@@ -523,7 +525,10 @@ Returns nil on failure and logs the reason."
                                             minuet-duet-filter-region-after-length))))
           (setq text-without-cursor
                 (substring text-without-cursor
-                           0 (- (length text-without-cursor) (length match)))))
+                           0 (- (length text-without-cursor) (length match))))
+          ;; Drop the separator newline left behind by line-oriented suffix dedup.
+          (setq text-without-cursor
+                (string-trim-right text-without-cursor "\n")))
         (when (> c-pos (length text-without-cursor))
           (setq c-pos (length text-without-cursor)))
         (let* ((cursor-prefix (substring text-without-cursor 0 c-pos))
