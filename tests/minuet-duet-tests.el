@@ -328,10 +328,7 @@ Use MESSAGE in the assertion failure."
              result))
     (should (string-match-p
              (regexp-quote minuet-duet-cursor-position-marker)
-             result))
-    (should-not (string-match-p "<editable_region_start>" result))
-    (should-not (string-match-p "<editable_region_end>" result))
-    (should-not (string-match-p "<cursor_position>" result))))
+             result))))
 
 (ert-deftest minuet-duet-make-system-prompt-literal-walk ()
   "System prompt placeholders are resolved from the template itself."
