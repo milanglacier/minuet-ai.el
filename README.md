@@ -512,7 +512,9 @@ This feature is highly experimental:
 
 It is recommended to configure the thinking levels of the models; refer to the
 [provider options](#provider-options) for guidance on managing thinking settings
-for each provider.
+for each provider. Note that you should configure `minuet-duet-*-options` rather
+than `minuet-*-options`, as the latter is the provider option for inline
+completion.
 
 Avoid setting a small `max_tokens` or `max_completion_tokens` limit for duet
 requests. Duet expects the model to return the complete rewritten editable
