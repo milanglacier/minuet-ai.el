@@ -480,12 +480,14 @@ Returns nil on failure and logs the reason."
         (cursor-marker minuet-duet-cursor-position-marker))
     ;; Validate marker counts
     (unless (= (minuet-duet--count-occurrences text start-marker) 1)
-      (minuet--log "Minuet duet: expected exactly one editable region start marker"
+      (minuet--log "Minuet duet: expected exactly one editable region start marker:"
                    minuet-show-error-message-on-minibuffer)
+      (minuet--log text)
       (cl-return-from minuet-duet--parse-response nil))
     (unless (= (minuet-duet--count-occurrences text end-marker) 1)
-      (minuet--log "Minuet duet: expected exactly one editable region end marker"
+      (minuet--log "Minuet duet: expected exactly one editable region end marker:"
                    minuet-show-error-message-on-minibuffer)
+      (minuet--log text)
       (cl-return-from minuet-duet--parse-response nil))
     ;; Extract inner text
     (let* ((s-start (cl-search start-marker text))
@@ -509,6 +511,7 @@ Returns nil on failure and logs the reason."
       (unless (= (minuet-duet--count-occurrences inner cursor-marker) 1)
         (minuet--log "Minuet duet: expected exactly one cursor marker inside editable region"
                      minuet-show-error-message-on-minibuffer)
+        (minuet--log inner)
         (cl-return-from minuet-duet--parse-response nil))
       ;; Record cursor, remove marker, then trim duplicated suffix.
       (let* ((c-pos (cl-search cursor-marker inner))
