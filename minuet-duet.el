@@ -512,7 +512,6 @@ fallback.  Return nil and log when INNER has multiple cursor markers."
     (cond
      ((= cursor-count 0)
       (minuet--log "Minuet duet: cursor marker missing; using editable region end")
-      (minuet--log inner)
       (cons inner (length inner)))
      ((= cursor-count 1)
       (cons (concat (substring inner 0 c-pos)
