@@ -466,7 +466,6 @@ Returns a plist with:
 
 (defun minuet-duet--extract-editable-region (text)
   "Return the editable region content from duet response TEXT.
-The returned content has one formatting newline trimmed from each side.
 Return nil and log when the editable region markers are invalid."
   (let ((start-marker minuet-duet-editable-region-start-marker)
         (end-marker minuet-duet-editable-region-end-marker))
@@ -839,7 +838,7 @@ CALLBACK receives the full response text or nil."
                   (funcall callback nil))))))))
 
 (defun minuet-duet--openai-complete (context callback)
-  "Send a duet request using OpenAI.
+  "Send a duet request using OpenAI API.
 CONTEXT is the chat context from `minuet-duet--build-context'.
 CALLBACK is a function that receives the full response text or nil."
   (minuet-duet--openai-complete-base minuet-duet-openai-options context callback))
