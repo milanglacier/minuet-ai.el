@@ -26,6 +26,7 @@
   - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
 - [Duet (Next Edit Prediction)](#duet-next-edit-prediction)
   - [Context Options](#context-options)
+  - [Edit History](#edit-history)
   - [TODO](#todo)
 - [Provider Options](#provider-options)
   - [OpenAI](#openai)
@@ -588,9 +589,45 @@ non-editable context window is kept before the editable region when truncation
 is needed. The default is 0.75, keeping more surrounding context before the
 edit.
 
+## Edit History
+
+Duet predictions improve significantly when the model can see what you have
+been doing. Enable `minuet-duet-history-mode` in a buffer to track your recent
+edits and include them in duet prompts as unified diffs:
+
+```elisp
+(add-hook 'prog-mode-hook #'minuet-duet-history-mode)
+```
+
+Tracking is lightweight: each buffer change only sets a flag, and the actual
+diff against the previous buffer snapshot is computed by a shared idle timer,
+producing one coalesced history entry per editing burst. `minuet-duet-predict`
+flushes pending edits synchronously before building its prompt, so the burst
+you just typed is always included. When the mode is disabled, prompts are
+unchanged.
+
+Relevant options:
+
+- `minuet-duet-history-idle-delay`: idle seconds before pending edits are
+  recorded (default 1.5).
+- `minuet-duet-history-max-entries`: history entries kept per buffer
+  (default 8).
+- `minuet-duet-history-max-region-lines`: edits whose changed region exceeds
+  this many lines (large pastes, reverts, whole-buffer reformats) are not
+  recorded (default 200).
+- `minuet-duet-history-diff-context-lines`: unchanged context lines shown
+  around each hunk (default 2).
+- `minuet-duet-history-max-prompt-chars`: total characters of history included
+  in prompts; the newest entry is always included (default 6000).
+- `minuet-duet-history-max-buffer-size`: buffers larger than this are not
+  tracked (default 1000000).
+
+Use `minuet-duet-history-clear` to discard the recorded history of the current
+buffer.
+
 ## TODO
 
-- [ ] Implement a proper diff mechanism to include recent edit changes in
+- [x] Implement a proper diff mechanism to include recent edit changes in
       prompts.
 - [ ] Add support for specialized NES models (Zeta, Sweep).
 - [ ] Implement automatically triggered duet prediction.

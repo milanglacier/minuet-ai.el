@@ -1,6 +1,6 @@
 EMACS ?= emacs
-TEST_FILES ?= tests/minuet-tests.el tests/minuet-diff-tests.el tests/minuet-duet-tests.el
-EL_FILES ?= minuet.el minuet-diff.el minuet-duet.el
+TEST_FILES ?= tests/minuet-tests.el tests/minuet-diff-tests.el tests/minuet-duet-tests.el tests/minuet-duet-history-tests.el
+EL_FILES ?= minuet.el minuet-diff.el minuet-duet.el minuet-duet-history.el
 MINUET_TEST_EMACS_DIR ?= $(CURDIR)/.cache/emacs
 
 .PHONY: test check compile clean-test-cache
