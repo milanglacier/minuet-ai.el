@@ -46,7 +46,10 @@
 ;;;;;
 
 (defcustom minuet-duet-history-idle-delay 1.5
-  "Idle seconds before pending edits are flushed into a history entry."
+  "Idle seconds before pending edits are flushed into a history entry.
+The value is read when the shared idle timer is created, i.e. when
+tracking starts in the first buffer.  Changing it while buffers are
+tracked takes effect only after the mode is disabled in all of them."
   :type 'number
   :group 'minuet-duet)
 
@@ -218,9 +221,14 @@ are 1-based."
 ;;;;;
 
 (defun minuet-duet-history--buffer-lines ()
-  "Return the current buffer content as a vector of lines."
-  (vconcat (split-string
-            (buffer-substring-no-properties (point-min) (point-max)) "\n")))
+  "Return the whole buffer content as a vector of lines.
+The buffer is widened so that snapshots and diffs are unaffected by
+narrowing; otherwise narrowing between flushes would record the hidden
+text as a spurious mass deletion or insertion."
+  (save-restriction
+    (widen)
+    (vconcat (split-string
+              (buffer-substring-no-properties (point-min) (point-max)) "\n"))))
 
 (defun minuet-duet-history--take-snapshot ()
   "Snapshot the current buffer content and modification tick."
@@ -320,18 +328,22 @@ user's intent from what they have been doing."
   :init-value nil
   :lighter nil
   (if minuet-duet-history-mode
-      (if (> (buffer-size) minuet-duet-history-max-buffer-size)
-          (progn
-            (setq minuet-duet-history-mode nil)
-            (minuet--log
-             (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; not tracking."
-                     (buffer-name))
-             t))
+      (cond
+       ;; Re-enabling in an already-tracked buffer keeps the recorded
+       ;; history instead of wiping it (e.g. a mode hook re-firing).
+       ((memq (current-buffer) minuet-duet-history--buffers))
+       ((> (buffer-size) minuet-duet-history-max-buffer-size)
+        (setq minuet-duet-history-mode nil)
+        (minuet--log
+         (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; not tracking."
+                 (buffer-name))
+         t))
+       (t
         (setq minuet-duet-history--entries nil)
         (minuet-duet-history--take-snapshot)
         (add-hook 'after-change-functions #'minuet-duet-history--on-change nil t)
         (add-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer nil t)
-        (minuet-duet-history--register (current-buffer)))
+        (minuet-duet-history--register (current-buffer))))
     (remove-hook 'after-change-functions #'minuet-duet-history--on-change t)
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
     (setq minuet-duet-history--snapshot-lines nil

@@ -604,7 +604,9 @@ diff against the previous buffer snapshot is computed by a shared idle timer,
 producing one coalesced history entry per editing burst. `minuet-duet-predict`
 flushes pending edits synchronously before building its prompt, so the burst
 you just typed is always included. When the mode is disabled, prompts are
-unchanged.
+unchanged. Each tracked buffer keeps a snapshot of its content for diffing,
+roughly doubling that buffer's memory footprint (bounded by
+`minuet-duet-history-max-buffer-size`).
 
 Relevant options:
 

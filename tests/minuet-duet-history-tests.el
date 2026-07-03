@@ -7,6 +7,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (load (expand-file-name "test-helper"
                         (file-name-directory
                          (or load-file-name (buffer-file-name))))
@@ -113,6 +114,14 @@ keeps tests independent, and any timer created inside is cancelled."
                   2)
                  "@@ -1,5 +1,5 @@\n-a\n+A\n b\n c\n d\n-e\n+E")))
 
+(ert-deftest minuet-duet-history-udiff-mid-file-offset ()
+  "Headers use absolute 1-based line numbers for edits deep in the file."
+  (should (equal (minuet-duet-history-test--udiff
+                  ["l1" "l2" "l3" "l4" "l5" "l6" "l7" "l8" "l9" "l10"]
+                  ["l1" "l2" "l3" "l4" "l5" "l6" "l7" "X" "l9" "l10"]
+                  2)
+                 "@@ -6,5 +6,5 @@\n l6\n l7\n-l8\n+X\n l9\n l10")))
+
 ;;;;;
 ;; Entry bounding
 ;;;;;
@@ -213,6 +222,67 @@ keeps tests independent, and any timer created inside is cancelled."
       (should-not minuet-duet-history-mode)
       (should-not (memq (current-buffer) minuet-duet-history--buffers)))))
 
+(ert-deftest minuet-duet-history-flush-widens-around-narrowing ()
+  "Edits made while narrowed diff against the widened buffer content."
+  (minuet-duet-history-test--with-buffer
+    (dotimes (i 10) (insert (format "line-%d\n" i)))
+    (minuet-duet-history-mode 1)
+    ;; Narrow to the first two lines, then insert a line at the edge.
+    (narrow-to-region (point-min) 15)
+    (goto-char (point-max))
+    (insert "x\n")
+    (minuet-duet-history--flush-buffer)
+    ;; The entry reflects only the real edit, not the text hidden by the
+    ;; narrowing, and the narrowing itself is preserved.
+    (should (equal minuet-duet-history--entries
+                   '("@@ -1,4 +1,5 @@\n line-0\n line-1\n+x\n line-2\n line-3")))
+    (should (buffer-narrowed-p))))
+
+(ert-deftest minuet-duet-history-flush-multi-hunk-entry ()
+  "Two distant edits in one burst yield one entry with two @@ groups."
+  (minuet-duet-history-test--with-buffer
+    (dotimes (i 12) (insert (format "line-%d\n" i)))
+    (minuet-duet-history-mode 1)
+    (goto-char (point-min))
+    (insert "top\n")
+    (goto-char (point-max))
+    (insert "bottom\n")
+    (minuet-duet-history--flush-buffer)
+    (should (= (length minuet-duet-history--entries) 1))
+    (let ((entry (car minuet-duet-history--entries)))
+      (should (= (minuet-duet--count-occurrences entry "@@ -") 2))
+      (should (string-match-p "^\\+top$" entry))
+      (should (string-match-p "^\\+bottom$" entry)))))
+
+(ert-deftest minuet-duet-history-reenable-keeps-history ()
+  "Enabling the mode in an already-tracked buffer keeps its history."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "b\n")
+    (minuet-duet-history--flush-buffer)
+    (should (= (length minuet-duet-history--entries) 1))
+    (minuet-duet-history-mode 1)
+    (should (= (length minuet-duet-history--entries) 1))
+    (should (equal minuet-duet-history--buffers (list (current-buffer))))))
+
+(ert-deftest minuet-duet-history-clear-discards-entries ()
+  "Clearing discards recorded entries and re-snapshots pending edits."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "b\n")
+    (minuet-duet-history--flush-buffer)
+    (should minuet-duet-history--entries)
+    ;; A pending, unflushed edit is absorbed by the new snapshot.
+    (insert "c\n")
+    (minuet-duet-history-clear)
+    (should-not minuet-duet-history--entries)
+    (minuet-duet-history--flush-buffer)
+    (should-not minuet-duet-history--entries)))
+
 ;;;;;
 ;; Timer & buffer lifecycle
 ;;;;;
@@ -235,6 +305,35 @@ keeps tests independent, and any timer created inside is cancelled."
           (should-not minuet-duet-history--timer))
       (when (buffer-live-p buf1) (kill-buffer buf1))
       (when (buffer-live-p buf2) (kill-buffer buf2)))))
+
+(ert-deftest minuet-duet-history-flush-all-flushes-and-prunes ()
+  "The timer flush records pending edits and prunes dead buffers."
+  (let ((minuet-duet-history--buffers nil)
+        (minuet-duet-history--timer nil)
+        (buf1 (generate-new-buffer "minuet-duet-history-flush-all-1"))
+        (buf2 (generate-new-buffer "minuet-duet-history-flush-all-2")))
+    (unwind-protect
+        (progn
+          (with-current-buffer buf1
+            (insert "a\n")
+            (minuet-duet-history-mode 1)
+            (goto-char (point-max))
+            (insert "b\n"))
+          (with-current-buffer buf2
+            (minuet-duet-history-mode 1)
+            ;; Simulate a buffer that died without running its hooks.
+            (remove-hook 'kill-buffer-hook
+                         #'minuet-duet-history--on-kill-buffer t))
+          (kill-buffer buf2)
+          (minuet-duet-history--flush-all)
+          (should (equal minuet-duet-history--buffers (list buf1)))
+          (should (= (length (buffer-local-value
+                              'minuet-duet-history--entries buf1))
+                     1)))
+      (when (buffer-live-p buf1) (kill-buffer buf1))
+      (when (buffer-live-p buf2) (kill-buffer buf2))
+      (when minuet-duet-history--timer
+        (cancel-timer minuet-duet-history--timer)))))
 
 ;;;;;
 ;; Prompt text
@@ -295,6 +394,33 @@ keeps tests independent, and any timer created inside is cancelled."
          (result (minuet-duet--make-chat-input context
                                                minuet-duet-default-chat-input)))
     (should (string-prefix-p "before\n" result))))
+
+;;;;;
+;; Predict integration
+;;;;;
+
+(ert-deftest minuet-duet-history-predict-flushes-and-includes-history ()
+  "`minuet-duet-predict' flushes the pending burst into the request prompt."
+  (minuet-duet-history-test--with-buffer
+    (insert "line-1\nline-2\nline-3\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "line-4\n")
+    (should minuet-duet-history--dirty)
+    (let ((captured nil)
+          (minuet-duet-provider 'openai-compatible))
+      (cl-letf (((symbol-function 'minuet-duet--openai-compatible-complete)
+                 (lambda (context callback)
+                   (setq captured (minuet-duet--make-chat-input
+                                   context minuet-duet-default-chat-input))
+                   (funcall callback nil))))
+        (minuet-duet-predict))
+      (should captured)
+      ;; The burst typed right before predicting was flushed synchronously
+      ;; and rendered ahead of the document.
+      (should (string-match-p "^\\+line-4$" captured))
+      (should (< (string-match "<edit_history>" captured)
+                 (string-match "line-1" captured))))))
 
 (provide 'minuet-duet-history-tests)
 ;;; minuet-duet-history-tests.el ends here

@@ -246,19 +246,17 @@ Input markers:
                    "<edit_history>
 Recent edits made by the user, oldest first, as unified diffs (line numbers refer to the buffer at the time of each edit):
 
-@@ -2,4 +2,5 @@
+@@ -2,3 +2,4 @@
      id: string;
      name: string;
 +    role?: string;
  };
 
-
-@@ -3,4 +3,5 @@
+@@ -3,3 +3,4 @@
      name: string;
      role?: string;
 +    active?: boolean;
  };
-
 </edit_history>
 type User = {
     id: string;
