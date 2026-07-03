@@ -329,9 +329,13 @@ user's intent from what they have been doing."
   :lighter nil
   (if minuet-duet-history-mode
       (cond
-       ;; Re-enabling in an already-tracked buffer keeps the recorded
-       ;; history instead of wiping it (e.g. a mode hook re-firing).
-       ((memq (current-buffer) minuet-duet-history--buffers))
+       ;; Re-enabling in an already-tracked buffer with intact local
+       ;; state keeps the recorded history instead of wiping it (e.g.
+       ;; the mode toggled on twice).  When the local state was wiped
+       ;; by `kill-all-local-variables' (revert, major mode change),
+       ;; the snapshot is gone, so fall through and re-initialize.
+       ((and (memq (current-buffer) minuet-duet-history--buffers)
+             minuet-duet-history--snapshot-lines))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
         (setq minuet-duet-history-mode nil)
         (minuet--log
@@ -358,9 +362,16 @@ user's intent from what they have been doing."
 
 (defun minuet-duet-history-flush ()
   "Flush pending edits into the history immediately.
-No-op when `minuet-duet-history-mode' is disabled."
+No-op when `minuet-duet-history-mode' is disabled.  Never signals:
+flush errors are logged, so callers such as `minuet-duet-predict'
+degrade to running without history instead of aborting."
   (when minuet-duet-history-mode
-    (minuet-duet-history--flush-buffer)))
+    (condition-case err
+        (minuet-duet-history--flush-buffer)
+      (error
+       (minuet--log
+        (format "Minuet duet history: flush error in %s: %s"
+                (buffer-name) (error-message-string err)))))))
 
 (defun minuet-duet-history-clear ()
   "Discard the recorded edit history of the current buffer."

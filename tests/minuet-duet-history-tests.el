@@ -267,6 +267,43 @@ keeps tests independent, and any timer created inside is cancelled."
     (should (= (length minuet-duet-history--entries) 1))
     (should (equal minuet-duet-history--buffers (list (current-buffer))))))
 
+(ert-deftest minuet-duet-history-reenable-after-local-wipe-reinitializes ()
+  "Re-enabling after `kill-all-local-variables' restores tracking.
+Simulates `normal-mode' on revert: local state and hooks are wiped
+while the buffer stays in the tracked list, then a mode hook re-fires."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\nb\n")
+    (minuet-duet-history-mode 1)
+    (kill-all-local-variables)
+    (should-not minuet-duet-history--snapshot-lines)
+    (should (memq (current-buffer) minuet-duet-history--buffers))
+    (minuet-duet-history-mode 1)
+    (should minuet-duet-history--snapshot-lines)
+    (should (memq #'minuet-duet-history--on-change after-change-functions))
+    (goto-char (point-max))
+    (insert "c\n")
+    (minuet-duet-history--flush-buffer)
+    (should (= (length minuet-duet-history--entries) 1))
+    (should (string-match-p "\\+c" (car minuet-duet-history--entries)))
+    ;; Re-registration does not duplicate the buffer in the list.
+    (should (equal minuet-duet-history--buffers (list (current-buffer))))))
+
+(ert-deftest minuet-duet-history-flush-api-never-signals ()
+  "`minuet-duet-history-flush' logs flush errors instead of signaling."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "b\n")
+    (cl-letf (((symbol-function 'minuet-duet-history--flush-buffer)
+               (lambda () (error "Boom"))))
+      (minuet-duet-history-flush))
+    ;; The pending edit survives the failed flush and is recorded by
+    ;; the next successful one.
+    (minuet-duet-history-flush)
+    (should (= (length minuet-duet-history--entries) 1))
+    (should (string-match-p "\\+b" (car minuet-duet-history--entries)))))
+
 (ert-deftest minuet-duet-history-clear-discards-entries ()
   "Clearing discards recorded entries and re-snapshots pending edits."
   (minuet-duet-history-test--with-buffer
