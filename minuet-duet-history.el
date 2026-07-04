@@ -322,6 +322,13 @@ selecting them."
   "Deregister the current buffer from history tracking."
   (minuet-duet-history--deregister (current-buffer)))
 
+(defun minuet-duet-history--on-clone-indirect-buffer ()
+  "Register a clone that inherited enabled history tracking.
+Cloning copies the buffer-local mode state, snapshot, entries, and
+hooks, but not membership in `minuet-duet-history--buffers'."
+  (when minuet-duet-history-mode
+    (minuet-duet-history--register (current-buffer))))
+
 (defun minuet-duet-history--register (buffer)
   "Register BUFFER for tracking and ensure the idle timer is running."
   (cl-pushnew buffer minuet-duet-history--buffers)
@@ -357,7 +364,9 @@ user's intent from what they have been doing."
        ;; by `kill-all-local-variables' (revert, major mode change),
        ;; the snapshot is gone, so fall through and re-initialize.
        ((and (memq (current-buffer) minuet-duet-history--buffers)
-             minuet-duet-history--snapshot-lines))
+             minuet-duet-history--snapshot-lines)
+        (add-hook 'clone-indirect-buffer-hook
+                  #'minuet-duet-history--on-clone-indirect-buffer nil t))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
         (setq minuet-duet-history-mode nil)
         ;; The buffer may hold a stale registration (e.g. a post-wipe
@@ -371,8 +380,12 @@ user's intent from what they have been doing."
         (setq minuet-duet-history--entries nil)
         (minuet-duet-history--take-snapshot)
         (add-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer nil t)
+        (add-hook 'clone-indirect-buffer-hook
+                  #'minuet-duet-history--on-clone-indirect-buffer nil t)
         (minuet-duet-history--register (current-buffer))))
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
+    (remove-hook 'clone-indirect-buffer-hook
+                 #'minuet-duet-history--on-clone-indirect-buffer t)
     (setq minuet-duet-history--snapshot-lines nil
           minuet-duet-history--snapshot-tick nil
           minuet-duet-history--entries nil)
