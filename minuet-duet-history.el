@@ -27,13 +27,14 @@
 ;; Per-buffer recent edit history tracking for minuet-duet.
 ;;
 ;; Enable `minuet-duet-history-mode' in a buffer to record the user's
-;; recent edits as unified diffs.  The `after-change-functions' hook
-;; only sets a dirty flag; the actual diff between the previous
-;; snapshot and the current buffer content is computed by a repeating
-;; idle timer, producing one coalesced history entry per editing
-;; burst.  `minuet-duet-predict' flushes pending edits synchronously
-;; before building its context, and includes the formatted history in
-;; the prompt via `minuet-duet-history-prompt-text'.
+;; recent edits as unified diffs.  Nothing runs per keystroke: a
+;; repeating idle timer detects changed buffers by comparing
+;; `buffer-chars-modified-tick' against the last snapshot's tick and
+;; diffs the buffer content against that snapshot, producing one
+;; coalesced history entry per editing burst.
+;; `minuet-duet--build-context' flushes pending edits synchronously
+;; before building its prompt, and includes the formatted history via
+;; `minuet-duet-history-prompt-text'.
 
 ;;; Code:
 
@@ -108,11 +109,10 @@ auto-disables if a tracked buffer grows past this size."
 (defvar-local minuet-duet-history--snapshot-tick nil
   "Buffer `buffer-chars-modified-tick' at the last snapshot.")
 
-(defvar-local minuet-duet-history--dirty nil
-  "Non-nil when the buffer changed since the last flush.")
-
 (defvar-local minuet-duet-history--entries nil
   "List of formatted unified diff strings, newest first.")
+
+(defvar minuet-duet-history-mode)
 
 ;;;;;
 ;; Pure helpers
@@ -209,6 +209,25 @@ are 1-based."
      groups
      "\n")))
 
+(defun minuet-duet-history--diff-entry (old new n-context)
+  "Diff OLD and NEW line vectors into a formatted history entry.
+Returns a unified diff string with N-CONTEXT context lines, nil when
+OLD and NEW are identical, or the symbol `region-too-large' when
+either middle region left after trimming the common affixes exceeds
+`minuet-duet-history-max-region-lines'."
+  (let* ((affixes (minuet-duet-history--common-affixes old new))
+         (prefix (car affixes))
+         (suffix (cdr affixes))
+         (old-mid-len (- (length old) prefix suffix))
+         (new-mid-len (- (length new) prefix suffix)))
+    (if (> (max old-mid-len new-mid-len)
+           minuet-duet-history-max-region-lines)
+        'region-too-large
+      (when-let* ((hunks (minuet-diff-line-hunks
+                          (cl-subseq old prefix (- (length old) suffix))
+                          (cl-subseq new prefix (- (length new) suffix)))))
+        (minuet-duet-history--format-udiff old new prefix hunks n-context)))))
+
 (defun minuet-duet-history--push-entry (entry)
   "Push ENTRY onto the buffer's history, dropping the oldest past the cap."
   (push entry minuet-duet-history--entries)
@@ -233,68 +252,71 @@ text as a spurious mass deletion or insertion."
 (defun minuet-duet-history--take-snapshot ()
   "Snapshot the current buffer content and modification tick."
   (setq minuet-duet-history--snapshot-lines (minuet-duet-history--buffer-lines)
-        minuet-duet-history--snapshot-tick (buffer-chars-modified-tick)
-        minuet-duet-history--dirty nil))
+        minuet-duet-history--snapshot-tick (buffer-chars-modified-tick)))
 
 (defun minuet-duet-history--flush-buffer ()
   "Record pending edits in the current buffer as a history entry.
 Diffs the buffer content against the last snapshot and updates the
-snapshot.  Does nothing when nothing changed since the last flush."
-  (when (and minuet-duet-history-mode minuet-duet-history--dirty)
-    (setq minuet-duet-history--dirty nil)
-    (if (> (buffer-size) minuet-duet-history-max-buffer-size)
-        (progn
-          (minuet-duet-history-mode -1)
-          (minuet--log
-           (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; tracking disabled."
-                   (buffer-name))))
-      (let ((tick (buffer-chars-modified-tick)))
-        ;; Unchanged tick means property-only changes; nothing to record.
-        (unless (eql tick minuet-duet-history--snapshot-tick)
-          (let* ((old minuet-duet-history--snapshot-lines)
-                 (new (minuet-duet-history--buffer-lines))
-                 (affixes (minuet-duet-history--common-affixes old new))
-                 (prefix (car affixes))
-                 (suffix (cdr affixes))
-                 (old-mid-len (- (length old) prefix suffix))
-                 (new-mid-len (- (length new) prefix suffix)))
-            (if (> (max old-mid-len new-mid-len)
-                   minuet-duet-history-max-region-lines)
-                (minuet--log
-                 (format "Minuet duet history: edit in %s exceeds `minuet-duet-history-max-region-lines'; skipped."
-                         (buffer-name)))
-              (when-let* ((hunks (minuet-diff-line-hunks
-                                  (cl-subseq old prefix (- (length old) suffix))
-                                  (cl-subseq new prefix (- (length new) suffix)))))
-                (minuet-duet-history--push-entry
-                 (minuet-duet-history--format-udiff
-                  old new prefix hunks
-                  minuet-duet-history-diff-context-lines))))
-            (setq minuet-duet-history--snapshot-lines new
-                  minuet-duet-history--snapshot-tick tick)))))))
+snapshot.  Does nothing when the buffer text is unchanged since the
+last flush.  Pending edits are detected by comparing
+`buffer-chars-modified-tick' (which ignores property-only changes)
+against the snapshot tick rather than via `after-change-functions', so
+edits made with modification hooks inhibited (e.g. by
+`with-silent-modifications') or from an indirect sibling buffer are
+recorded too."
+  (let ((tick (buffer-chars-modified-tick)))
+    (when (and minuet-duet-history-mode
+               (not (eql tick minuet-duet-history--snapshot-tick)))
+      (if (> (buffer-size) minuet-duet-history-max-buffer-size)
+          (progn
+            (minuet-duet-history-mode -1)
+            (minuet--log
+             (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; tracking disabled."
+                     (buffer-name))))
+        (let* ((new (minuet-duet-history--buffer-lines))
+               (entry (minuet-duet-history--diff-entry
+                       minuet-duet-history--snapshot-lines new
+                       minuet-duet-history-diff-context-lines)))
+          (cond
+           ((eq entry 'region-too-large)
+            (minuet--log
+             (format "Minuet duet history: edit in %s exceeds `minuet-duet-history-max-region-lines'; skipped."
+                     (buffer-name))))
+           (entry (minuet-duet-history--push-entry entry)))
+          (setq minuet-duet-history--snapshot-lines new
+                minuet-duet-history--snapshot-tick tick))))))
+
+(defun minuet-duet-history--flush-buffer-safely ()
+  "Flush the current buffer, logging flush errors instead of signaling.
+Used by both the idle timer and `minuet-duet-history-flush' so a flush
+error degrades to \"no new history\" rather than aborting the caller;
+the snapshot tick is left unchanged, so the next flush retries the
+same burst."
+  (condition-case err
+      (minuet-duet-history--flush-buffer)
+    (error
+     (minuet--log
+      (format "Minuet duet history: flush error in %s: %s"
+              (buffer-name) (error-message-string err))))))
 
 (defun minuet-duet-history--flush-all ()
   "Flush pending edits in all tracked buffers.
-Prunes dead buffers and buffers where the mode is no longer enabled."
+Prunes dead buffers and buffers where the mode is no longer enabled.
+Buffers whose modification tick is unchanged are skipped without
+selecting them."
   (dolist (buffer (copy-sequence minuet-duet-history--buffers))
     (if (not (and (buffer-live-p buffer)
                   (buffer-local-value 'minuet-duet-history-mode buffer)))
         (minuet-duet-history--deregister buffer)
-      (with-current-buffer buffer
-        (condition-case err
-            (minuet-duet-history--flush-buffer)
-          (error
-           (minuet--log
-            (format "Minuet duet history: flush error in %s: %s"
-                    (buffer-name buffer) (error-message-string err)))))))))
+      (unless (eql (buffer-chars-modified-tick buffer)
+                   (buffer-local-value 'minuet-duet-history--snapshot-tick
+                                       buffer))
+        (with-current-buffer buffer
+          (minuet-duet-history--flush-buffer-safely))))))
 
 ;;;;;
 ;; Hooks & timer lifecycle
 ;;;;;
-
-(defun minuet-duet-history--on-change (_beg _end _len)
-  "Mark the buffer as having pending edits."
-  (setq minuet-duet-history--dirty t))
 
 (defun minuet-duet-history--on-kill-buffer ()
   "Deregister the current buffer from history tracking."
@@ -338,6 +360,9 @@ user's intent from what they have been doing."
              minuet-duet-history--snapshot-lines))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
         (setq minuet-duet-history-mode nil)
+        ;; The buffer may hold a stale registration (e.g. a post-wipe
+        ;; mode-hook re-fire after the buffer grew past the cap).
+        (minuet-duet-history--deregister (current-buffer))
         (minuet--log
          (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; not tracking."
                  (buffer-name))
@@ -345,14 +370,11 @@ user's intent from what they have been doing."
        (t
         (setq minuet-duet-history--entries nil)
         (minuet-duet-history--take-snapshot)
-        (add-hook 'after-change-functions #'minuet-duet-history--on-change nil t)
         (add-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer nil t)
         (minuet-duet-history--register (current-buffer))))
-    (remove-hook 'after-change-functions #'minuet-duet-history--on-change t)
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
     (setq minuet-duet-history--snapshot-lines nil
           minuet-duet-history--snapshot-tick nil
-          minuet-duet-history--dirty nil
           minuet-duet-history--entries nil)
     (minuet-duet-history--deregister (current-buffer))))
 
@@ -363,15 +385,11 @@ user's intent from what they have been doing."
 (defun minuet-duet-history-flush ()
   "Flush pending edits into the history immediately.
 No-op when `minuet-duet-history-mode' is disabled.  Never signals:
-flush errors are logged, so callers such as `minuet-duet-predict'
-degrade to running without history instead of aborting."
+flush errors are logged, so callers such as
+`minuet-duet--build-context' degrade to running without history
+instead of aborting."
   (when minuet-duet-history-mode
-    (condition-case err
-        (minuet-duet-history--flush-buffer)
-      (error
-       (minuet--log
-        (format "Minuet duet history: flush error in %s: %s"
-                (buffer-name) (error-message-string err)))))))
+    (minuet-duet-history--flush-buffer-safely)))
 
 (defun minuet-duet-history-clear ()
   "Discard the recorded edit history of the current buffer."
@@ -382,21 +400,32 @@ degrade to running without history instead of aborting."
 
 (defun minuet-duet-history-prompt-text ()
   "Return the edit history of the current buffer formatted for prompts.
-Returns nil when `minuet-duet-history-mode' is disabled or no edits
-have been recorded.  The newest entry is always included; older
-entries are added while the total length stays within
-`minuet-duet-history-max-prompt-chars'.  Entries are rendered oldest
-first."
-  (when (and minuet-duet-history-mode minuet-duet-history--entries)
+Returns nil when `minuet-duet-history-mode' is disabled, when no edits
+have been recorded, or while the buffer is narrowed: entries are
+diffed against the widened buffer, so rendering them under narrowing
+could expose text outside the visible region and would use line
+numbers inconsistent with the narrowed document.  Entries are kept and
+become available again once the buffer is widened.
+
+The newest entry is always included; older entries (and their
+separators) are added while the total stays within
+`minuet-duet-history-max-prompt-chars'.  The fixed <edit_history>
+wrapper is not counted against the budget.  Entries are rendered
+oldest first."
+  (when (and minuet-duet-history-mode
+             minuet-duet-history--entries
+             (not (buffer-narrowed-p)))
     (let ((selected nil)
           (total 0))
       (cl-loop for entry in minuet-duet-history--entries
                for newest = t then nil
+               ;; Entries after the first cost their separator too.
+               for cost = (length entry) then (+ (length entry) 2)
                if (or newest
-                      (<= (+ total (length entry))
+                      (<= (+ total cost)
                           minuet-duet-history-max-prompt-chars))
                do (progn (push entry selected)
-                         (cl-incf total (length entry)))
+                         (cl-incf total cost))
                else return nil)
       (concat
        "<edit_history>\n"

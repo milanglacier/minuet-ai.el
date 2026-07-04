@@ -501,6 +501,8 @@ truncated side."
 
 (defun minuet-duet--build-context ()
   "Build duet context plist from the current buffer and point.
+Pending edit history is flushed first, so any entry point building a
+context includes the burst typed right before it.
 Returns a plist with:
   :chars-modified-tick
   :non-editable-region-before
@@ -510,6 +512,7 @@ Returns a plist with:
   :original-lines
   :region-start  (buffer position)
   :region-end    (buffer position)"
+  (minuet-duet-history-flush)
   (let* ((lines-before (max minuet-duet-editable-region-lines-before 0))
          (lines-after (max minuet-duet-editable-region-lines-after 0))
          ;; Current line number (1-based)
@@ -1065,7 +1068,6 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
   "Request a duet (next-edit) prediction for the region around point."
   (interactive)
   (minuet-duet--clear-state)
-  (minuet-duet-history-flush)
   (let* ((context (minuet-duet--build-context))
          (buffer (current-buffer))
          (provider minuet-duet-provider)

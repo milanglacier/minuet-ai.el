@@ -64,14 +64,10 @@ keeps tests independent, and any timer created inside is cancelled."
 ;;;;;
 
 (defun minuet-duet-history-test--udiff (old new n-context)
-  "Diff OLD and NEW vectors of lines and format with N-CONTEXT."
-  (let* ((affixes (minuet-duet-history--common-affixes old new))
-         (prefix (car affixes))
-         (suffix (cdr affixes))
-         (hunks (minuet-diff-line-hunks
-                 (cl-subseq old prefix (- (length old) suffix))
-                 (cl-subseq new prefix (- (length new) suffix)))))
-    (minuet-duet-history--format-udiff old new prefix hunks n-context)))
+  "Diff OLD and NEW vectors of lines and format with N-CONTEXT.
+Delegates to the production pipeline so these tests exercise the same
+code path `minuet-duet-history--flush-buffer' uses."
+  (minuet-duet-history--diff-entry old new n-context))
 
 (ert-deftest minuet-duet-history-udiff-replacement-no-context ()
   "A single replaced line with zero context."
@@ -139,20 +135,23 @@ keeps tests independent, and any timer created inside is cancelled."
 ;;;;;
 
 (ert-deftest minuet-duet-history-flush-records-entries ()
-  "Each flush of a dirty buffer records one coalesced entry, newest first."
+  "Each flush of a changed buffer records one coalesced entry, newest first."
   (minuet-duet-history-test--with-buffer
     (insert "a\nb\nc\n")
     (minuet-duet-history-mode 1)
     (should minuet-duet-history-mode)
-    (should-not minuet-duet-history--dirty)
+    (should (eql minuet-duet-history--snapshot-tick
+                 (buffer-chars-modified-tick)))
     (goto-char (point-min))
     (forward-line 1)
     (insert "new line\n")
-    (should minuet-duet-history--dirty)
+    (should-not (eql minuet-duet-history--snapshot-tick
+                     (buffer-chars-modified-tick)))
     (minuet-duet-history--flush-buffer)
     (should (equal minuet-duet-history--entries
                    '("@@ -1,3 +1,4 @@\n a\n+new line\n b\n c")))
-    (should-not minuet-duet-history--dirty)
+    (should (eql minuet-duet-history--snapshot-tick
+                 (buffer-chars-modified-tick)))
     ;; A second burst becomes a second entry, newest first.
     (goto-char (point-max))
     (insert "d\n")
@@ -169,7 +168,8 @@ keeps tests independent, and any timer created inside is cancelled."
       (goto-char (point-min))
       (insert "x")
       (delete-char -1)
-      (should minuet-duet-history--dirty)
+      (should-not (eql minuet-duet-history--snapshot-tick
+                       (buffer-chars-modified-tick)))
       (minuet-duet-history--flush-buffer)
       (should-not minuet-duet-history--entries)
       (should-not (eql minuet-duet-history--snapshot-tick old-tick))
@@ -222,6 +222,23 @@ keeps tests independent, and any timer created inside is cancelled."
       (should-not minuet-duet-history-mode)
       (should-not (memq (current-buffer) minuet-duet-history--buffers)))))
 
+(ert-deftest minuet-duet-history-refusal-deregisters-stale-registration ()
+  "A size refusal after a local-variable wipe deregisters the buffer.
+Otherwise the buffer would linger in the tracked list with the timer
+alive until the next idle prune."
+  (minuet-duet-history-test--with-buffer
+    (insert "small")
+    (minuet-duet-history-mode 1)
+    (should (memq (current-buffer) minuet-duet-history--buffers))
+    (kill-all-local-variables)
+    (goto-char (point-max))
+    (insert "\nmore than ten characters\n")
+    (let ((minuet-duet-history-max-buffer-size 10))
+      (minuet-duet-history-mode 1))
+    (should-not minuet-duet-history-mode)
+    (should-not (memq (current-buffer) minuet-duet-history--buffers))
+    (should-not minuet-duet-history--timer)))
+
 (ert-deftest minuet-duet-history-flush-widens-around-narrowing ()
   "Edits made while narrowed diff against the widened buffer content."
   (minuet-duet-history-test--with-buffer
@@ -237,6 +254,21 @@ keeps tests independent, and any timer created inside is cancelled."
     (should (equal minuet-duet-history--entries
                    '("@@ -1,4 +1,5 @@\n line-0\n line-1\n+x\n line-2\n line-3")))
     (should (buffer-narrowed-p))))
+
+(ert-deftest minuet-duet-history-flush-sees-silent-modifications ()
+  "Edits made with modification hooks inhibited are still recorded.
+The flush is gated on `buffer-chars-modified-tick', which advances for
+`with-silent-modifications' edits even though `after-change-functions'
+never runs."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\nb\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (with-silent-modifications (insert "silent\n"))
+    (minuet-duet-history--flush-buffer)
+    (should (= (length minuet-duet-history--entries) 1))
+    (should (string-match-p "^\\+silent$"
+                            (car minuet-duet-history--entries)))))
 
 (ert-deftest minuet-duet-history-flush-multi-hunk-entry ()
   "Two distant edits in one burst yield one entry with two @@ groups."
@@ -279,7 +311,7 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
     (should (memq (current-buffer) minuet-duet-history--buffers))
     (minuet-duet-history-mode 1)
     (should minuet-duet-history--snapshot-lines)
-    (should (memq #'minuet-duet-history--on-change after-change-functions))
+    (should (memq #'minuet-duet-history--on-kill-buffer kill-buffer-hook))
     (goto-char (point-max))
     (insert "c\n")
     (minuet-duet-history--flush-buffer)
@@ -393,6 +425,24 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
       (should (string-suffix-p "\n</edit_history>" text))
       (should (string-match-p "E-OLDEST\n\nE-MIDDLE\n\nE-NEWEST" text)))))
 
+(ert-deftest minuet-duet-history-prompt-text-nil-while-narrowed ()
+  "History is withheld from prompts while the buffer is narrowed.
+Entries are diffed against the widened buffer, so rendering them under
+narrowing could expose concealed text and would use line numbers
+inconsistent with the narrowed document.  Entries survive and become
+available again after widening."
+  (minuet-duet-history-test--with-buffer
+    (dotimes (i 6) (insert (format "line-%d\n" i)))
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "x\n")
+    (minuet-duet-history--flush-buffer)
+    (should (minuet-duet-history-prompt-text))
+    (narrow-to-region (point-min) 10)
+    (should-not (minuet-duet-history-prompt-text))
+    (widen)
+    (should (minuet-duet-history-prompt-text))))
+
 (ert-deftest minuet-duet-history-prompt-text-budget ()
   "Older entries are dropped when over budget; the newest always stays."
   (minuet-duet-history-test--with-buffer
@@ -443,7 +493,8 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
     (minuet-duet-history-mode 1)
     (goto-char (point-max))
     (insert "line-4\n")
-    (should minuet-duet-history--dirty)
+    (should-not (eql minuet-duet-history--snapshot-tick
+                     (buffer-chars-modified-tick)))
     (let ((captured nil)
           (minuet-duet-provider 'openai-compatible))
       (cl-letf (((symbol-function 'minuet-duet--openai-compatible-complete)

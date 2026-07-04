@@ -6,8 +6,9 @@
   mode that tracks the user's recent edits as unified diffs and includes them
   in duet prompts via the new `{{{:edit_history}}}` chat-input placeholder,
   helping the model infer intent for next-edit prediction. Tracking is
-  lightweight: buffer changes only set a flag, and diffs are computed on idle,
-  one coalesced entry per editing burst.
+  lightweight: nothing runs per keystroke; changed buffers are detected on
+  idle via their modification tick and diffed then, one coalesced entry per
+  editing burst.
 
 # Version 0.8.0 (2026-05-18)
 

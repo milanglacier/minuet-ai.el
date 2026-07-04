@@ -599,14 +599,17 @@ edits and include them in duet prompts as unified diffs:
 (add-hook 'prog-mode-hook #'minuet-duet-history-mode)
 ```
 
-Tracking is lightweight: each buffer change only sets a flag, and the actual
-diff against the previous buffer snapshot is computed by a shared idle timer,
-producing one coalesced history entry per editing burst. `minuet-duet-predict`
-flushes pending edits synchronously before building its prompt, so the burst
-you just typed is always included. When the mode is disabled, prompts are
-unchanged. Each tracked buffer keeps a snapshot of its content for diffing,
-roughly doubling that buffer's memory footprint (bounded by
-`minuet-duet-history-max-buffer-size`).
+Tracking is lightweight: nothing runs per keystroke. A shared idle timer
+detects changed buffers by their modification tick and diffs them against the
+previous buffer snapshot, producing one coalesced history entry per editing
+burst. `minuet-duet-predict` flushes pending edits synchronously before
+building its prompt, so the burst you just typed is always included. When the
+mode is disabled, prompts are unchanged. While a buffer is narrowed, its
+recorded history is withheld from prompts: entries are diffed against the
+widened buffer, so sending them could expose text outside the visible region;
+they become available again after widening. Each tracked buffer keeps a
+snapshot of its content for diffing, roughly doubling that buffer's memory
+footprint (bounded by `minuet-duet-history-max-buffer-size`).
 
 Relevant options:
 
