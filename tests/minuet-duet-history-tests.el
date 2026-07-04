@@ -417,6 +417,50 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
       (when minuet-duet-history--timer
         (cancel-timer minuet-duet-history--timer)))))
 
+(ert-deftest minuet-duet-history-direct-clone-registers-for-idle-flush ()
+  "A direct clone inheriting enabled history mode participates in idle flushes."
+  (let ((minuet-duet-history--buffers nil)
+        (minuet-duet-history--timer nil)
+        (base (generate-new-buffer "minuet-duet-history-direct-clone-base"))
+        clone)
+    (unwind-protect
+        (progn
+          (with-current-buffer base
+            (insert "a\n")
+            (minuet-duet-history-mode 1)
+            (insert "before-clone\n")
+            (minuet-duet-history--flush-buffer)
+            (setq clone
+                  (clone-buffer
+                   (generate-new-buffer-name
+                    "minuet-duet-history-clone-direct")
+                   nil)))
+          (should (buffer-local-value 'minuet-duet-history-mode clone))
+          (should (memq clone minuet-duet-history--buffers))
+          (should (equal (buffer-local-value
+                          'minuet-duet-history--entries clone)
+                         (buffer-local-value
+                          'minuet-duet-history--entries base)))
+          (should-not (buffer-local-value
+                       'minuet-duet-history--snapshot-tick clone))
+          (with-current-buffer clone
+            (goto-char (point-max))
+            (insert "b\n"))
+          (minuet-duet-history--flush-all)
+          (should (= (length (buffer-local-value
+                              'minuet-duet-history--entries clone))
+                     2))
+          ;; The clone keeps the shared timer alive independently of
+          ;; the base buffer.
+          (with-current-buffer base
+            (minuet-duet-history-mode -1))
+          (should minuet-duet-history--timer)
+          (should (equal minuet-duet-history--buffers (list clone))))
+      (when (buffer-live-p clone) (kill-buffer clone))
+      (when (buffer-live-p base) (kill-buffer base))
+      (when minuet-duet-history--timer
+        (cancel-timer minuet-duet-history--timer)))))
+
 (ert-deftest minuet-duet-history-flush-all-flushes-and-prunes ()
   "The timer flush records pending edits and prunes dead buffers."
   (let ((minuet-duet-history--buffers nil)

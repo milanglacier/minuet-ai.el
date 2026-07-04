@@ -322,11 +322,20 @@ selecting them."
   "Deregister the current buffer from history tracking."
   (minuet-duet-history--deregister (current-buffer)))
 
-(defun minuet-duet-history--on-clone-indirect-buffer ()
+(defun minuet-duet-history--on-clone ()
   "Register a clone that inherited enabled history tracking.
 Cloning copies the buffer-local mode state, snapshot, entries, and
 hooks, but not membership in `minuet-duet-history--buffers'."
   (when minuet-duet-history-mode
+    (minuet-duet-history--register (current-buffer))))
+
+(defun minuet-duet-history--on-direct-clone ()
+  "Prepare and register a direct clone with inherited history tracking.
+Direct clones have an independent modification tick that is unrelated
+to the inherited snapshot tick.  Mark it stale so the first idle flush
+compares the clone against the inherited snapshot."
+  (when minuet-duet-history-mode
+    (setq minuet-duet-history--snapshot-tick nil)
     (minuet-duet-history--register (current-buffer))))
 
 (defun minuet-duet-history--register (buffer)
@@ -366,7 +375,9 @@ user's intent from what they have been doing."
        ((and (memq (current-buffer) minuet-duet-history--buffers)
              minuet-duet-history--snapshot-lines)
         (add-hook 'clone-indirect-buffer-hook
-                  #'minuet-duet-history--on-clone-indirect-buffer nil t))
+                  #'minuet-duet-history--on-clone nil t)
+        (add-hook 'clone-buffer-hook
+                  #'minuet-duet-history--on-direct-clone nil t))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
         (setq minuet-duet-history-mode nil)
         ;; The buffer may hold a stale registration (e.g. a post-wipe
@@ -381,11 +392,15 @@ user's intent from what they have been doing."
         (minuet-duet-history--take-snapshot)
         (add-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer nil t)
         (add-hook 'clone-indirect-buffer-hook
-                  #'minuet-duet-history--on-clone-indirect-buffer nil t)
+                  #'minuet-duet-history--on-clone nil t)
+        (add-hook 'clone-buffer-hook
+                  #'minuet-duet-history--on-direct-clone nil t)
         (minuet-duet-history--register (current-buffer))))
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
     (remove-hook 'clone-indirect-buffer-hook
-                 #'minuet-duet-history--on-clone-indirect-buffer t)
+                 #'minuet-duet-history--on-clone t)
+    (remove-hook 'clone-buffer-hook
+                 #'minuet-duet-history--on-direct-clone t)
     (setq minuet-duet-history--snapshot-lines nil
           minuet-duet-history--snapshot-tick nil
           minuet-duet-history--entries nil)
