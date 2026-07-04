@@ -254,6 +254,13 @@ text as a spurious mass deletion or insertion."
   (setq minuet-duet-history--snapshot-lines (minuet-duet-history--buffer-lines)
         minuet-duet-history--snapshot-tick (buffer-chars-modified-tick)))
 
+(defun minuet-duet-history--disable-oversized-buffer ()
+  "Disable history tracking because the current buffer exceeds its size cap."
+  (minuet-duet-history-mode -1)
+  (minuet--log
+   (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; tracking disabled."
+           (buffer-name))))
+
 (defun minuet-duet-history--flush-buffer ()
   "Record pending edits in the current buffer as a history entry.
 Diffs the buffer content against the last snapshot and updates the
@@ -268,11 +275,7 @@ recorded too."
     (when (and minuet-duet-history-mode
                (not (eql tick minuet-duet-history--snapshot-tick)))
       (if (> (buffer-size) minuet-duet-history-max-buffer-size)
-          (progn
-            (minuet-duet-history-mode -1)
-            (minuet--log
-             (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; tracking disabled."
-                     (buffer-name))))
+          (minuet-duet-history--disable-oversized-buffer)
         (let* ((new (minuet-duet-history--buffer-lines))
                (entry (minuet-duet-history--diff-entry
                        minuet-duet-history--snapshot-lines new
@@ -413,8 +416,10 @@ instead of aborting."
   "Discard the recorded edit history of the current buffer."
   (interactive)
   (when minuet-duet-history-mode
-    (setq minuet-duet-history--entries nil)
-    (minuet-duet-history--take-snapshot)))
+    (if (> (buffer-size) minuet-duet-history-max-buffer-size)
+        (minuet-duet-history--disable-oversized-buffer)
+      (setq minuet-duet-history--entries nil)
+      (minuet-duet-history--take-snapshot))))
 
 (defun minuet-duet-history-prompt-text ()
   "Return the edit history of the current buffer formatted for prompts.

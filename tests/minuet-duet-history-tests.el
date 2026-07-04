@@ -352,6 +352,22 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
     (minuet-duet-history--flush-buffer)
     (should-not minuet-duet-history--entries)))
 
+(ert-deftest minuet-duet-history-clear-disables-on-oversized-buffer ()
+  "Clearing disables tracking instead of snapshotting an oversized buffer."
+  (minuet-duet-history-test--with-buffer
+    (insert "small")
+    (let ((minuet-duet-history-max-buffer-size 10))
+      (minuet-duet-history-mode 1)
+      (goto-char (point-max))
+      (insert "\nmore than ten characters\n")
+      (minuet-duet-history-clear)
+      (should-not minuet-duet-history-mode)
+      (should-not minuet-duet-history--snapshot-lines)
+      (should-not minuet-duet-history--snapshot-tick)
+      (should-not minuet-duet-history--entries)
+      (should-not (memq (current-buffer) minuet-duet-history--buffers))
+      (should-not minuet-duet-history--timer))))
+
 ;;;;;
 ;; Timer & buffer lifecycle
 ;;;;;
