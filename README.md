@@ -630,6 +630,26 @@ Relevant options:
 Use `minuet-duet-history-clear` to discard the recorded history of the current
 buffer.
 
+### Edit History Benchmarks
+
+Run the end-to-end performance and memory suite with:
+
+```sh
+make benchmark
+```
+
+It measures the initial snapshot of a large buffer, an accepted diff at the
+configured region limit, a whole-buffer rewrite that is skipped by the limit,
+frequent edits coalesced into one flush, and the worst case where every edit is
+flushed. Tracked workloads are paired with edit-only baselines. Results include
+wall time, throughput, garbage collection time, estimated Lisp allocation per
+run, and retained live Lisp heap after collection.
+
+The workload is configurable through `MINUET_BENCH_LINES`,
+`MINUET_BENCH_REPETITIONS`, and `MINUET_BENCH_BURST_EDITS`. For meaningful
+comparisons, use the same Emacs build and settings and collect multiple runs on
+an otherwise idle machine.
+
 ## TODO
 
 - [x] Implement a proper diff mechanism to include recent edit changes in
