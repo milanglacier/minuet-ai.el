@@ -600,16 +600,21 @@ edits and include them in duet prompts as unified diffs:
 ```
 
 Tracking is lightweight: nothing runs per keystroke. A shared idle timer
-detects changed buffers by their modification tick and diffs them against the
-previous buffer snapshot, producing one coalesced history entry per editing
-burst. `minuet-duet-predict` flushes pending edits synchronously before
-building its prompt, so the burst you just typed is always included. When the
-mode is disabled, prompts are unchanged. While a buffer is narrowed, its
-recorded history is withheld from prompts: entries are diffed against the
-widened buffer, so sending them could expose text outside the visible region;
-they become available again after widening. Each tracked buffer keeps a
-snapshot of its content for diffing, roughly doubling that buffer's memory
-footprint (bounded by `minuet-duet-history-max-buffer-size`).
+detects changed buffers by their modification tick, snapshots them to
+temporary files with `write-region` (no Lisp allocation), and diffs the
+snapshots asynchronously with an external diff program, producing one
+coalesced history entry per editing burst. `minuet-duet-predict` waits up to
+`minuet-duet-history-flush-timeout` seconds for pending edits to be recorded
+before building its prompt, so the burst you just typed is normally included;
+if the diff is somehow slower, the prediction proceeds with history one burst
+stale instead of blocking. When the mode is disabled, prompts are unchanged.
+While a buffer is narrowed, its recorded history is withheld from prompts:
+entries are diffed against the widened buffer, so sending them could expose
+text outside the visible region; they become available again after widening.
+Each tracked buffer keeps two snapshot files in `temporary-file-directory`
+(bounded by `minuet-duet-history-max-buffer-size`, deleted when tracking
+ends); as with auto-save files, this means buffer contents touch the disk, so
+leave the mode off in buffers whose content must not be written anywhere.
 
 Relevant options:
 
@@ -626,6 +631,12 @@ Relevant options:
   in prompts; the newest entry is always included (default 6000).
 - `minuet-duet-history-max-buffer-size`: buffers larger than this are not
   tracked (default 1000000).
+- `minuet-duet-history-diff-program`: the diff program to run (default
+  `diff`, expected on `PATH`; Windows users without one can point this at any
+  program that emits unified diffs with POSIX diff exit codes). The mode
+  refuses to enable when the program is not found.
+- `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
+  in-flight diff before proceeding with slightly stale history (default 0.2).
 
 Use `minuet-duet-history-clear` to discard the recorded history of the current
 buffer.
@@ -639,11 +650,14 @@ make benchmark
 ```
 
 It measures the initial snapshot of a large buffer, an accepted diff at the
-configured region limit, a whole-buffer rewrite that is skipped by the limit,
-frequent edits coalesced into one flush, and the worst case where every edit is
-flushed. Tracked workloads are paired with edit-only baselines. Results include
+configured region limit, a whole-buffer rewrite whose diff is discarded by the
+limit, frequent edits coalesced into one flush, and the worst case where every
+edit is flushed. Tracked workloads are paired with edit-only baselines, and
+every measured flush waits for the external diff to complete. Results include
 wall time, throughput, garbage collection time, estimated Lisp allocation per
-run, and retained live Lisp heap after collection.
+run, and retained live Lisp heap after collection; since snapshots live on
+disk rather than in the Lisp heap, wall time and retained heap are the
+headline numbers.
 
 The workload is configurable through `MINUET_BENCH_LINES`,
 `MINUET_BENCH_REPETITIONS`, and `MINUET_BENCH_BURST_EDITS`. For meaningful

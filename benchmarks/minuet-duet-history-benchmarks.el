@@ -10,6 +10,15 @@
 ;; Each tracked workload has an edit-only baseline.  Results include elapsed
 ;; time, garbage collection, allocated Lisp memory, and retained Lisp memory.
 ;; Run with `make benchmark'.
+;;
+;; Diffs run in an external process over temp-file snapshots; the flush
+;; timeout is raised for the whole run so every measured flush includes
+;; the diff's completion (write, fork/exec, diff, sentinel) instead of
+;; being cut short by the interactive deadline.  Wall time and retained
+;; KiB are the headline numbers; alloc MiB now mostly measures the diff
+;; output strings and process plumbing, since snapshots no longer live
+;; in the Lisp heap.  The whole-rewrite/skip workload measures a full
+;; external diff whose output is discarded post-hoc, not an early bail.
 
 ;;; Code:
 
@@ -190,7 +199,8 @@ Label the result NAME."
 Set MINUET_BENCH_LINES, MINUET_BENCH_REPETITIONS, or
 MINUET_BENCH_BURST_EDITS to change the default workload."
   (interactive)
-  (let* ((runs minuet-duet-history-benchmark-repetitions)
+  (let* ((minuet-duet-history-flush-timeout 30)
+         (runs minuet-duet-history-benchmark-repetitions)
          (full-runs (min 3 runs))
          (region-lines minuet-duet-history-max-region-lines)
          (cases
