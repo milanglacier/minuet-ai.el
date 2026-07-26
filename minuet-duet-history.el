@@ -131,9 +131,11 @@ one burst stale rather than blocking."
 
 (defvar minuet-duet-history--temp-files nil
   "List of all snapshot files allocated by tracked buffers.
-Used to delete files whose owning buffer died without running
-`kill-buffer-hook' (e.g. temp buffers created with
-`inhibit-buffer-hooks'), and by the `kill-emacs-hook' cleanup.")
+Files are normally deleted by their owner's lifecycle hooks; the
+registry backstops buffers killed with their hooks inhibited (e.g.
+temp buffers created with `inhibit-buffer-hooks'), whose files are
+deleted when the last tracked buffer deregisters and at
+`kill-emacs'.")
 
 (defvar-local minuet-duet-history--snapshot-file nil
   "File holding the buffer content at the last recorded snapshot.")
@@ -235,12 +237,14 @@ buffer's text."
 (defun minuet-duet-history--allocate-files ()
   "Allocate this buffer's two snapshot files and register them.
 `make-temp-file' creates them in the local `temporary-file-directory'
-even for remote buffers."
+even for remote buffers.  Each file is registered right after it is
+created, so a failure creating the second one cannot strand the first
+outside the registry."
   (setq minuet-duet-history--snapshot-file
-        (make-temp-file "minuet-duet-history-")
-        minuet-duet-history--pending-file
         (make-temp-file "minuet-duet-history-"))
   (push minuet-duet-history--snapshot-file minuet-duet-history--temp-files)
+  (setq minuet-duet-history--pending-file
+        (make-temp-file "minuet-duet-history-"))
   (push minuet-duet-history--pending-file minuet-duet-history--temp-files))
 
 (defun minuet-duet-history--delete-files ()
@@ -431,6 +435,16 @@ is still in flight, are skipped without selecting them."
   (minuet-duet-history--delete-files)
   (minuet-duet-history--deregister (current-buffer)))
 
+(defun minuet-duet-history--on-major-mode-change ()
+  "Disable the mode before `kill-all-local-variables' wipes its state.
+Runs from `change-major-mode-hook' (major-mode change, or a manual
+revert through `normal-mode') while the buffer-local file and process
+variables are still intact, so the diff is cancelled and the snapshot
+files are deleted instead of being orphaned by the wipe.  When the new
+major mode's hooks re-enable the mode, it re-initializes from
+scratch."
+  (minuet-duet-history-mode -1))
+
 
 ;; Direct clones created by `clone-buffer' are intentionally ignored:
 ;; it cannot clone file-visiting buffers and falls outside Minuet's
@@ -500,13 +514,15 @@ intent from what they have been doing."
       (cond
        ;; Re-enabling in an already-tracked buffer with intact local
        ;; state keeps the recorded history instead of wiping it (e.g.
-       ;; the mode toggled on twice).  When the local state was wiped
-       ;; by `kill-all-local-variables' (revert, major mode change) or
-       ;; the snapshot file was deleted externally, fall through and
-       ;; re-initialize.
+       ;; the mode toggled on twice).  When the snapshot file was
+       ;; deleted externally, fall through and re-initialize.  (A
+       ;; `kill-all-local-variables' wipe never reaches this arm: the
+       ;; `change-major-mode-hook' teardown disables the mode first.)
        ((and (memq (current-buffer) minuet-duet-history--buffers)
              minuet-duet-history--snapshot-file
              (file-exists-p minuet-duet-history--snapshot-file))
+        (add-hook 'change-major-mode-hook
+                  #'minuet-duet-history--on-major-mode-change nil t)
         (add-hook 'clone-indirect-buffer-hook
                   #'minuet-duet-history--on-clone nil t))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
@@ -534,10 +550,14 @@ intent from what they have been doing."
         (setq minuet-duet-history--entries nil)
         (minuet-duet-history--take-snapshot)
         (add-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer nil t)
+        (add-hook 'change-major-mode-hook
+                  #'minuet-duet-history--on-major-mode-change nil t)
         (add-hook 'clone-indirect-buffer-hook
                   #'minuet-duet-history--on-clone nil t)
         (minuet-duet-history--register (current-buffer))))
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
+    (remove-hook 'change-major-mode-hook
+                 #'minuet-duet-history--on-major-mode-change t)
     (remove-hook 'clone-indirect-buffer-hook
                  #'minuet-duet-history--on-clone t)
     (minuet-duet-history--cancel-process)

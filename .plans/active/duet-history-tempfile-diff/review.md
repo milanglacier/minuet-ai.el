@@ -219,3 +219,108 @@ The test-coverage gap above has since been addressed with two new tests in
   checks.
 
 Both pass; the full suite is 112/112.
+
+## Follow-up: findings 1 and 3 fixed (leftover temp-file handling)
+
+Findings 1 (stranded-file accumulation) and 3 (`--allocate-files` exception
+safety) have since been fixed in `minuet-duet-history.el`:
+
+- `minuet-duet-history--temp-files` now stores `(BUFFER . FILE)` conses
+  instead of bare paths, so every registered file records its owning buffer.
+- New `minuet-duet-history--delete-leftover-files`, called at the end of
+  every `--flush-all` pass (i.e. each idle tick): it deletes any registered
+  file whose owning buffer is dead, or whose buffer no longer references the
+  file through `--snapshot-file`/`--pending-file` (the
+  `kill-all-local-variables` wipe case — manual revert, major-mode change).
+  Leftover files now live at most one idle period instead of until the last
+  tracked buffer deregisters. An entry whose deletion fails (e.g. a
+  Windows file lock) is kept and retried on the next pass rather than
+  silently dropped.
+- Sweep cost is negligible: `buffer-live-p` is O(1) (a field check, not a
+  buffer-list scan), and a measured full pass over 1000 registry entries
+  takes ~0.3 ms (~0.3 µs/entry) — trivially small next to the `write-region`
+  + external diff a flush already performs.
+- `--allocate-files` now registers each file immediately after its
+  `make-temp-file`, so a failure creating the second file can no longer
+  strand the first outside the registry (finding 3).
+- `--delete-files` and `--cleanup-all` were adjusted for the new entry shape.
+
+Test updates:
+
+- New `minuet-duet-history-flush-all-deletes-leftover-files`: enables the
+  mode, wipes locals with `kill-all-local-variables`, re-enables (fresh pair
+  allocated, old pair orphaned on disk), then asserts `--flush-all` deletes
+  exactly the old pair and keeps the live one.
+- `minuet-duet-history-flush-all-flushes-and-prunes` updated for the new
+  behavior: a hookless-dead buffer's files are now deleted by the same flush
+  pass while another buffer stays tracked, instead of lingering until the
+  last deregister.
+- Test cleanup forms updated for the `(buffer . file)` entry shape.
+
+Full suite after the fix: 113/113; byte-compile clean.
+
+## Follow-up: leftover-file fix redesigned as event-driven (no idle scan)
+
+After discussion, the polling design above (a per-idle-tick scan comparing
+registry entries against each buffer's file variables) was judged a smell:
+it made the global registry depend on buffer-local internals and ran
+recurring work to compensate for a gap that can be closed at the source.
+It was replaced with fully event-driven cleanup:
+
+- **`change-major-mode-hook` teardown** (`--on-major-mode-change`, added
+  buffer-locally on enable): `kill-all-local-variables' runs this hook
+  *before* wiping locals (verified empirically), so the mode now disables
+  itself while its file/process variables are still intact — files deleted
+  and buffer deregistered on the spot. The wipe-orphan class (manual revert,
+  major-mode change) no longer exists, rather than being cleaned up later.
+- **Prune-time cleanup for hookless deaths**: `--deregister` now deletes a
+  dead buffer's registered files (`--delete-dead-buffer-files`). This covers
+  buffers killed without `kill-buffer-hook` (`inhibit-buffer-hooks`), which
+  no hook can observe — but only when the idle prune actually encounters a
+  dead buffer, not as a recurring scan. This case is real, though rare:
+  `inhibit-buffer-hooks` does not suppress major-mode hooks (verified
+  empirically), so e.g. `prog-mode-hook'-based enabling can fire inside a
+  `with-temp-buffer' that calls a major mode without `delay-mode-hooks'.
+- The per-tick `--delete-leftover-files` sweep was removed entirely; the
+  registry keeps its `(BUFFER . FILE)` shape (needed for prune-time
+  ownership) and remains the final safety net at last-deregister and
+  `kill-emacs`. The cleanup predicate no longer inspects any buffer-local
+  file variables.
+
+Test updates: the wipe test now asserts teardown happens at
+`kill-all-local-variables` time (files already gone, buffer deregistered,
+before any flush pass); `reenable-after-local-wipe` asserts the buffer left
+the tracked list at wipe time; the hookless-death expectations in
+`flush-all-flushes-and-prunes` are unchanged (files deleted by the prune).
+
+Full suite after the redesign: 113/113; byte-compile clean.
+
+## Follow-up: prune-time cleanup for hookless deaths dropped (won't pursue)
+
+The prune-time deletion of a dead buffer's files (and with it the
+`(BUFFER . FILE)` registry shape) was subsequently judged not worth its
+complexity and removed. Rationale:
+
+- The only case it covered is a buffer killed with its hooks inhibited while
+  the mode is enabled — which takes an unusual setup to begin with (a
+  major-mode hook enabling the mode inside e.g. `with-temp-buffer` without
+  `delay-mode-hooks`).
+- Serving that case requires the registry to record file ownership, because
+  a dead buffer's local variables are unreadable (verified empirically) —
+  bare paths cannot be attributed after death.
+
+Final state of the leftover-file handling:
+
+- `--temp-files` is a flat list of paths again; `--delete-dead-buffer-files`
+  is gone; `--deregister` is back to its original shape.
+- The realistic orphan class (`kill-all-local-variables` wipes) remains fully
+  fixed at the source by the `change-major-mode-hook` teardown.
+- Hookless deaths fall back to the original backstop: files stay registered
+  until the last tracked buffer deregisters or Emacs exits. The trade-off is
+  recorded as a won't-pursue note in the `--temp-files` docstring, and the
+  `flush-all-flushes-and-prunes` test asserts (and documents) the lingering
+  behavior deliberately.
+- The per-file registration in `--allocate-files` (finding 3, exception
+  safety) is kept.
+
+Full suite after the simplification: 113/113; byte-compile clean.

@@ -243,9 +243,10 @@ edit."
       (should-not minuet-duet-history--temp-files))))
 
 (ert-deftest minuet-duet-history-refusal-deregisters-stale-registration ()
-  "A size refusal after a local-variable wipe deregisters the buffer.
-Otherwise the buffer would linger in the tracked list with the timer
-alive until the next idle prune."
+  "A size refusal leaves the buffer untracked with no timer running.
+After a local-variable wipe (which tears tracking down via the
+`change-major-mode-hook' teardown), a mode hook re-fire on a buffer
+that grew past the cap must refuse cleanly."
   (minuet-duet-history-test--with-buffer
     (insert "small")
     (minuet-duet-history-mode 1)
@@ -336,14 +337,15 @@ system cannot even encode its content still round-trips."
 
 (ert-deftest minuet-duet-history-reenable-after-local-wipe-reinitializes ()
   "Re-enabling after `kill-all-local-variables' restores tracking.
-Simulates `normal-mode' on revert: local state and hooks are wiped
-while the buffer stays in the tracked list, then a mode hook re-fires."
+Simulates `normal-mode' on revert: the `change-major-mode-hook'
+teardown disables tracking cleanly before the wipe, then a mode hook
+re-fires and re-initializes from scratch."
   (minuet-duet-history-test--with-buffer
     (insert "a\nb\n")
     (minuet-duet-history-mode 1)
     (kill-all-local-variables)
     (should-not minuet-duet-history--snapshot-file)
-    (should (memq (current-buffer) minuet-duet-history--buffers))
+    (should-not (memq (current-buffer) minuet-duet-history--buffers))
     (minuet-duet-history-mode 1)
     (should minuet-duet-history--snapshot-file)
     (should (file-exists-p minuet-duet-history--snapshot-file))
@@ -606,6 +608,28 @@ of, and the snapshot files are deleted."
       (dolist (file minuet-duet-history--temp-files)
         (ignore-errors (delete-file file))))))
 
+(ert-deftest minuet-duet-history-local-wipe-tears-down-tracking ()
+  "A local-variable wipe tears tracking down before its state is lost.
+`kill-all-local-variables' (manual revert, major-mode change) runs
+`change-major-mode-hook' before wiping, so the mode disables itself
+while the file and process variables are still intact: the snapshot
+files are deleted on the spot and the buffer deregisters, leaving
+nothing behind.  Re-enabling afterwards re-initializes from scratch."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (let ((old-snapshot minuet-duet-history--snapshot-file)
+          (old-pending minuet-duet-history--pending-file))
+      (kill-all-local-variables)
+      (should-not (file-exists-p old-snapshot))
+      (should-not (file-exists-p old-pending))
+      (should-not minuet-duet-history--temp-files)
+      (should-not (memq (current-buffer) minuet-duet-history--buffers))
+      ;; Re-enabling (as the new major mode's hooks would) starts fresh.
+      (minuet-duet-history-mode 1)
+      (should (file-exists-p minuet-duet-history--snapshot-file))
+      (should (= (length minuet-duet-history--temp-files) 2)))))
+
 (ert-deftest minuet-duet-history-cleanup-all-sweeps-registry ()
   "`minuet-duet-history--cleanup-all' deletes every allocated file."
   (minuet-duet-history-test--with-buffer
@@ -709,8 +733,10 @@ buffer's, and disabling it leaves the base buffer's files alone."
 
 (ert-deftest minuet-duet-history-flush-all-flushes-and-prunes ()
   "The timer flush records pending edits and prunes dead buffers.
-Files stranded by a buffer that died without running its kill hooks
-are swept when the tracked-buffer list empties."
+Files left behind by a buffer that died without running its kill
+hooks stay registered until the last tracked buffer deregisters,
+which deletes the whole registry (the documented won't-pursue
+trade-off for this rare case)."
   (let ((minuet-duet-history--buffers nil)
         (minuet-duet-history--timer nil)
         (minuet-duet-history--temp-files nil)
@@ -738,8 +764,8 @@ are swept when the tracked-buffer list empties."
                                   'minuet-duet-history--entries buf1))
                          1))
            5 "flush-all never recorded buf1's pending edit")
-          ;; buf2's stranded files linger in the registry until the
-          ;; last tracked buffer deregisters, which sweeps them.
+          ;; buf2's files linger in the registry until the last tracked
+          ;; buffer deregisters, which deletes the whole registry.
           (should (file-exists-p buf2-snapshot))
           (kill-buffer buf1)
           (should-not (file-exists-p buf2-snapshot))
