@@ -459,6 +459,70 @@ while the buffer stays in the tracked list, then a mode hook re-fires."
         (minuet-duet-history--start-flush)
         (should (eq minuet-duet-history--process process))))))
 
+(ert-deftest minuet-duet-history-clear-cancels-in-flight-diff ()
+  "Clearing while a diff is in flight cancels it cleanly.
+The late sentinel sees the eq-guard mismatch: no entry is recorded and
+its output buffers are disposed of."
+  (skip-unless (file-executable-p
+                (minuet-duet-history-test--script "slow-diff.sh")))
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "b\n")
+    (let ((minuet-duet-history-diff-program
+           (minuet-duet-history-test--script "slow-diff.sh"))
+          (minuet-duet-history-flush-timeout 0.05))
+      (minuet-duet-history-flush)
+      (let* ((process minuet-duet-history--process)
+             (stdout (process-buffer process))
+             (stderr (process-get process :minuet-stderr)))
+        (should process)
+        (minuet-duet-history-clear)
+        (should-not minuet-duet-history--process)
+        (should-not (process-live-p process))
+        (minuet-test--wait-until
+         (lambda () (not (or (buffer-live-p stdout) (buffer-live-p stderr))))
+         5 "cancelled sentinel never disposed of its output buffers")
+        ;; The sentinel has run by now; the cancelled diff left no entry.
+        (should-not minuet-duet-history--entries)
+        ;; The clear absorbed the pending edit into a fresh snapshot, so
+        ;; there is nothing left to flush.
+        (should (eql minuet-duet-history--snapshot-tick
+                     (buffer-chars-modified-tick)))
+        (minuet-duet-history-test--flush)
+        (should-not minuet-duet-history--entries)))))
+
+(ert-deftest minuet-duet-history-disable-cancels-in-flight-diff ()
+  "Disabling the mode while a diff is in flight cancels it cleanly.
+No entry is recorded, the late sentinel's output buffers are disposed
+of, and the snapshot files are deleted."
+  (skip-unless (file-executable-p
+                (minuet-duet-history-test--script "slow-diff.sh")))
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "b\n")
+    (let ((minuet-duet-history-diff-program
+           (minuet-duet-history-test--script "slow-diff.sh"))
+          (minuet-duet-history-flush-timeout 0.05)
+          (snapshot minuet-duet-history--snapshot-file)
+          (pending minuet-duet-history--pending-file))
+      (minuet-duet-history-flush)
+      (let* ((process minuet-duet-history--process)
+             (stdout (process-buffer process))
+             (stderr (process-get process :minuet-stderr)))
+        (should process)
+        (minuet-duet-history-mode -1)
+        (should-not (process-live-p process))
+        (should-not (file-exists-p snapshot))
+        (should-not (file-exists-p pending))
+        (minuet-test--wait-until
+         (lambda () (not (or (buffer-live-p stdout) (buffer-live-p stderr))))
+         5 "cancelled sentinel never disposed of its output buffers")
+        (should-not minuet-duet-history--entries)))))
+
 (ert-deftest minuet-duet-history-clear-discards-entries ()
   "Clearing discards recorded entries and re-snapshots pending edits."
   (minuet-duet-history-test--with-buffer
