@@ -27,13 +27,16 @@
 ;; Per-buffer recent edit history tracking for minuet-duet.
 ;;
 ;; Enable `minuet-duet-history-mode' in a buffer to record the user's
-;; recent edits as unified diffs.  Nothing runs per keystroke: a
-;; repeating idle timer detects changed buffers by comparing
-;; `buffer-chars-modified-tick' against the last snapshot's tick.
-;; Snapshots are temporary files written with `write-region' (no Lisp
-;; string is allocated), and the diff is computed asynchronously by an
-;; external program (`minuet-duet-history-diff-program'), producing one
-;; coalesced history entry per editing burst.
+;; recent edits as unified diffs.  Nothing runs per keystroke: each
+;; tracked buffer owns a one-shot idle timer that detects changes by
+;; comparing `buffer-chars-modified-tick' against the last snapshot's
+;; tick and then schedules the buffer's next check, so all tracking
+;; state is buffer-local.  Snapshots are temporary files under a
+;; shared session directory (deleted at `kill-emacs') written with
+;; `write-region' (no Lisp string is allocated), and the diff is
+;; computed asynchronously by an external program
+;; (`minuet-duet-history-diff-program'), producing one coalesced
+;; history entry per editing burst.
 ;; `minuet-duet--build-context' calls `minuet-duet-history-flush',
 ;; which waits for the in-flight diff up to
 ;; `minuet-duet-history-flush-timeout' seconds, so the burst typed
@@ -54,9 +57,8 @@
 
 (defcustom minuet-duet-history-idle-delay 1.5
   "Idle seconds before pending edits are flushed into a history entry.
-The value is read when the shared idle timer is created, i.e. when
-tracking starts in the first buffer.  Changing it while buffers are
-tracked takes effect only after the mode is disabled in all of them."
+The value is read each time a buffer schedules its next idle check,
+so changes take effect from the next editing burst."
   :type 'number
   :group 'minuet-duet)
 
@@ -123,19 +125,19 @@ one burst stale rather than blocking."
 ;; State
 ;;;;;
 
-(defvar minuet-duet-history--timer nil
-  "Repeating idle timer that flushes pending edits, or nil.")
+(defvar minuet-duet-history--directory nil
+  "Directory holding all snapshot files, or nil before the first use.
+Created lazily under `temporary-file-directory' and deleted
+recursively at `kill-emacs'.  Snapshot files are normally deleted by
+their owner's lifecycle hooks; the directory sweep backstops buffers
+killed with their hooks inhibited (e.g. temp buffers created with
+`inhibit-buffer-hooks'), whose files would otherwise be stranded.")
 
-(defvar minuet-duet-history--buffers nil
-  "List of live buffers with `minuet-duet-history-mode' enabled.")
-
-(defvar minuet-duet-history--temp-files nil
-  "List of all snapshot files allocated by tracked buffers.
-Files are normally deleted by their owner's lifecycle hooks; the
-registry backstops buffers killed with their hooks inhibited (e.g.
-temp buffers created with `inhibit-buffer-hooks'), whose files are
-deleted when the last tracked buffer deregisters and at
-`kill-emacs'.")
+(defvar-local minuet-duet-history--timer nil
+  "One-shot idle timer scheduling this buffer's next flush, or nil.
+Non-nil exactly while the buffer is tracked: each run schedules the
+next timer, and the chain ends when the buffer dies or the mode is
+disabled.")
 
 (defvar-local minuet-duet-history--snapshot-file nil
   "File holding the buffer content at the last recorded snapshot.")
@@ -234,27 +236,41 @@ buffer's text."
         (write-region (point-min) (point-max) file nil 0)))
     tick))
 
+(defun minuet-duet-history--ensure-directory ()
+  "Return the snapshot directory, creating it when missing.
+`make-temp-file' creates it in the local `temporary-file-directory'
+even for remote buffers.  The directory is re-created if it was
+deleted externally mid-session; the `kill-emacs' sweep is installed
+when it is first created."
+  (unless (and minuet-duet-history--directory
+               (file-directory-p minuet-duet-history--directory))
+    (setq minuet-duet-history--directory
+          (make-temp-file "minuet-duet-history-" t))
+    (add-hook 'kill-emacs-hook #'minuet-duet-history--delete-directory))
+  minuet-duet-history--directory)
+
+(defun minuet-duet-history--delete-directory ()
+  "Delete the snapshot directory and everything in it.
+Runs from `kill-emacs-hook'; also collects files stranded by buffers
+that died without running `kill-buffer-hook'.  In-flight diff
+processes are not cancelled: they carry :noquery and die with Emacs."
+  (when minuet-duet-history--directory
+    (ignore-errors (delete-directory minuet-duet-history--directory t))
+    (setq minuet-duet-history--directory nil)))
+
 (defun minuet-duet-history--allocate-files ()
-  "Allocate this buffer's two snapshot files and register them.
-`make-temp-file' creates them in the local `temporary-file-directory'
-even for remote buffers.  Each file is registered right after it is
-created, so a failure creating the second one cannot strand the first
-outside the registry."
-  (setq minuet-duet-history--snapshot-file
-        (make-temp-file "minuet-duet-history-"))
-  (push minuet-duet-history--snapshot-file minuet-duet-history--temp-files)
-  (setq minuet-duet-history--pending-file
-        (make-temp-file "minuet-duet-history-"))
-  (push minuet-duet-history--pending-file minuet-duet-history--temp-files))
+  "Allocate this buffer's two snapshot files in the snapshot directory."
+  (let ((prefix (expand-file-name "snapshot-"
+                                  (minuet-duet-history--ensure-directory))))
+    (setq minuet-duet-history--snapshot-file (make-temp-file prefix)
+          minuet-duet-history--pending-file (make-temp-file prefix))))
 
 (defun minuet-duet-history--delete-files ()
-  "Delete this buffer's snapshot files and deregister them."
+  "Delete this buffer's snapshot files."
   (dolist (file (list minuet-duet-history--snapshot-file
                       minuet-duet-history--pending-file))
     (when file
-      (ignore-errors (delete-file file))
-      (setq minuet-duet-history--temp-files
-            (delete file minuet-duet-history--temp-files))))
+      (ignore-errors (delete-file file))))
   (setq minuet-duet-history--snapshot-file nil
         minuet-duet-history--pending-file nil))
 
@@ -409,31 +425,64 @@ same burst."
       (format "Minuet duet history: flush error in %s: %s"
               (buffer-name) (error-message-string err))))))
 
-(defun minuet-duet-history--flush-all ()
-  "Start flushing pending edits in all tracked buffers.
-Prunes dead buffers and buffers where the mode is no longer enabled.
-Buffers whose modification tick is unchanged, or whose previous diff
-is still in flight, are skipped without selecting them."
-  (dolist (buffer (copy-sequence minuet-duet-history--buffers))
-    (if (not (and (buffer-live-p buffer)
-                  (buffer-local-value 'minuet-duet-history-mode buffer)))
-        (minuet-duet-history--deregister buffer)
-      (unless (or (buffer-local-value 'minuet-duet-history--process buffer)
-                  (eql (buffer-chars-modified-tick buffer)
-                       (buffer-local-value 'minuet-duet-history--snapshot-tick
-                                           buffer)))
-        (with-current-buffer buffer
-          (minuet-duet-history--flush-buffer-safely))))))
+;;;;;
+;; Timer chain
+;;;;;
+
+(defun minuet-duet-history--schedule-timer ()
+  "Schedule this buffer's next idle flush as a one-shot timer.
+A fresh timer object is created each time (re-activating one that is
+still on `timer-idle-list' is an error), and any previously scheduled
+timer is cancelled first so the buffer never runs two chains.  The
+timer is activated with `timer-activate-when-idle' rather than
+`run-with-idle-timer': when the next timer is scheduled from the
+previous one's run, Emacs is already idle past the delay, and
+`run-with-idle-timer' would fire it immediately, re-running the chain
+in a busy loop for the rest of the idle period.  Activating without
+DONT-WAIT defers it to the next idle period instead, matching the
+once-per-idle-period behavior of a repeating idle timer."
+  (minuet-duet-history--cancel-timer)
+  (let ((timer (timer-create)))
+    (timer-set-function timer #'minuet-duet-history--on-timer
+                        (list (current-buffer)))
+    (timer-set-idle-time timer minuet-duet-history-idle-delay)
+    (timer-activate-when-idle timer)
+    (setq minuet-duet-history--timer timer)))
+
+(defun minuet-duet-history--cancel-timer ()
+  "Cancel this buffer's scheduled flush timer, ending its timer chain."
+  (when minuet-duet-history--timer
+    (cancel-timer minuet-duet-history--timer)
+    (setq minuet-duet-history--timer nil)))
+
+(defun minuet-duet-history--on-timer (buffer)
+  "Flush pending edits in BUFFER and schedule its next flush timer.
+When BUFFER died or the mode was turned off in it without running the
+teardown (e.g. a kill with `inhibit-buffer-hooks', or wiped local
+variables), no next timer is scheduled and the chain simply ends, so
+a stale timer fires at most once.  The flush is skipped while the
+previous diff is still in flight or the buffer text is unchanged
+since the last snapshot."
+  (when (and (buffer-live-p buffer)
+             (buffer-local-value 'minuet-duet-history-mode buffer))
+    (with-current-buffer buffer
+      (unless (or minuet-duet-history--process
+                  (eql (buffer-chars-modified-tick)
+                       minuet-duet-history--snapshot-tick))
+        (minuet-duet-history--flush-buffer-safely))
+      ;; The flush may have disabled the mode (oversized buffer).
+      (when minuet-duet-history-mode
+        (minuet-duet-history--schedule-timer)))))
 
 ;;;;;
-;; Hooks & timer lifecycle
+;; Hooks
 ;;;;;
 
 (defun minuet-duet-history--on-kill-buffer ()
-  "Cancel this buffer's diff, delete its snapshot files, and deregister."
+  "Cancel this buffer's diff and timer and delete its snapshot files."
   (minuet-duet-history--cancel-process)
   (minuet-duet-history--delete-files)
-  (minuet-duet-history--deregister (current-buffer)))
+  (minuet-duet-history--cancel-timer))
 
 (defun minuet-duet-history--on-major-mode-change ()
   "Disable the mode before `kill-all-local-variables' wipes its state.
@@ -451,53 +500,20 @@ scratch."
 ;; normal editing workflow.  Only indirect clones need lifecycle
 ;; handling here.
 (defun minuet-duet-history--on-clone ()
-  "Register an indirect clone that inherited enabled history tracking.
+  "Re-initialize an indirect clone that inherited enabled history tracking.
 Indirect cloning copies the buffer-local mode state, snapshot file
-paths, in-flight process, entries, and hooks.  The inherited process
-and file paths alias the parent's, so they are dropped (without
-killing the parent's process or deleting its files) and fresh
-snapshot files are allocated for the clone."
+paths, timer, in-flight process, entries, and hooks.  The inherited
+process, timer, and file paths alias the parent's, so they are
+dropped (without killing the parent's process, cancelling its timer,
+or deleting its files) and a fresh snapshot and timer chain are set
+up for the clone."
   (when minuet-duet-history-mode
     (setq minuet-duet-history--process nil
+          minuet-duet-history--timer nil
           minuet-duet-history--snapshot-file nil
           minuet-duet-history--pending-file nil)
     (minuet-duet-history--take-snapshot)
-    (minuet-duet-history--register (current-buffer))))
-
-(defun minuet-duet-history--cleanup-all ()
-  "Cancel all in-flight diffs and delete every allocated snapshot file.
-Runs from `kill-emacs-hook'; also deletes files stranded by buffers
-that died without running `kill-buffer-hook'."
-  (dolist (buffer minuet-duet-history--buffers)
-    (when (buffer-live-p buffer)
-      (with-current-buffer buffer
-        (minuet-duet-history--cancel-process))))
-  (dolist (file minuet-duet-history--temp-files)
-    (ignore-errors (delete-file file)))
-  (setq minuet-duet-history--temp-files nil))
-
-(defun minuet-duet-history--register (buffer)
-  "Register BUFFER for tracking and ensure the idle timer is running."
-  (cl-pushnew buffer minuet-duet-history--buffers)
-  (unless minuet-duet-history--timer
-    (add-hook 'kill-emacs-hook #'minuet-duet-history--cleanup-all)
-    (setq minuet-duet-history--timer
-          (run-with-idle-timer minuet-duet-history-idle-delay t
-                               #'minuet-duet-history--flush-all))))
-
-(defun minuet-duet-history--deregister (buffer)
-  "Deregister BUFFER; cancel the idle timer when no buffers remain.
-When the last buffer deregisters, any snapshot files still in the
-registry belong to buffers that died without running their kill hooks
-and are deleted."
-  (setq minuet-duet-history--buffers
-        (delq buffer minuet-duet-history--buffers))
-  (when (and (null minuet-duet-history--buffers)
-             minuet-duet-history--timer)
-    (cancel-timer minuet-duet-history--timer)
-    (setq minuet-duet-history--timer nil)
-    (remove-hook 'kill-emacs-hook #'minuet-duet-history--cleanup-all)
-    (minuet-duet-history--cleanup-all)))
+    (minuet-duet-history--schedule-timer)))
 
 ;;;###autoload
 (define-minor-mode minuet-duet-history-mode
@@ -514,11 +530,12 @@ intent from what they have been doing."
       (cond
        ;; Re-enabling in an already-tracked buffer with intact local
        ;; state keeps the recorded history instead of wiping it (e.g.
-       ;; the mode toggled on twice).  When the snapshot file was
-       ;; deleted externally, fall through and re-initialize.  (A
-       ;; `kill-all-local-variables' wipe never reaches this arm: the
-       ;; `change-major-mode-hook' teardown disables the mode first.)
-       ((and (memq (current-buffer) minuet-duet-history--buffers)
+       ;; the mode toggled on twice); the live timer chain is kept.
+       ;; When the snapshot file was deleted externally, fall through
+       ;; and re-initialize.  (A `kill-all-local-variables' wipe never
+       ;; reaches this branch: the `change-major-mode-hook' teardown
+       ;; disables the mode first.)
+       ((and minuet-duet-history--timer
              minuet-duet-history--snapshot-file
              (file-exists-p minuet-duet-history--snapshot-file))
         (add-hook 'change-major-mode-hook
@@ -527,16 +544,16 @@ intent from what they have been doing."
                   #'minuet-duet-history--on-clone nil t))
        ((> (buffer-size) minuet-duet-history-max-buffer-size)
         (setq minuet-duet-history-mode nil)
-        ;; The buffer may hold a stale registration (e.g. a post-wipe
-        ;; mode-hook re-fire after the buffer grew past the cap).
-        (minuet-duet-history--deregister (current-buffer))
+        ;; The buffer may hold a stale timer chain (e.g. its snapshot
+        ;; file vanished while the buffer grew past the cap).
+        (minuet-duet-history--cancel-timer)
         (minuet--log
          (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; not tracking."
                  (buffer-name))
          t))
        ((not (executable-find minuet-duet-history-diff-program))
         (setq minuet-duet-history-mode nil)
-        (minuet-duet-history--deregister (current-buffer))
+        (minuet-duet-history--cancel-timer)
         (minuet--log
          (format "Minuet duet history: diff program %S not found; not tracking %s."
                  minuet-duet-history-diff-program (buffer-name))
@@ -544,7 +561,8 @@ intent from what they have been doing."
        (t
         ;; Drop any stale state (a snapshot file deleted externally,
         ;; or file paths left over from a partial wipe) before
-        ;; re-initializing.
+        ;; re-initializing.  `minuet-duet-history--schedule-timer'
+        ;; cancels a stale timer chain itself.
         (minuet-duet-history--cancel-process)
         (minuet-duet-history--delete-files)
         (setq minuet-duet-history--entries nil)
@@ -554,7 +572,7 @@ intent from what they have been doing."
                   #'minuet-duet-history--on-major-mode-change nil t)
         (add-hook 'clone-indirect-buffer-hook
                   #'minuet-duet-history--on-clone nil t)
-        (minuet-duet-history--register (current-buffer))))
+        (minuet-duet-history--schedule-timer)))
     (remove-hook 'kill-buffer-hook #'minuet-duet-history--on-kill-buffer t)
     (remove-hook 'change-major-mode-hook
                  #'minuet-duet-history--on-major-mode-change t)
@@ -562,9 +580,9 @@ intent from what they have been doing."
                  #'minuet-duet-history--on-clone t)
     (minuet-duet-history--cancel-process)
     (minuet-duet-history--delete-files)
+    (minuet-duet-history--cancel-timer)
     (setq minuet-duet-history--snapshot-tick nil
-          minuet-duet-history--entries nil)
-    (minuet-duet-history--deregister (current-buffer))))
+          minuet-duet-history--entries nil)))
 
 ;;;;;
 ;; Public API

@@ -27,27 +27,37 @@
   (expand-file-name name minuet-duet-history-test--scripts-directory))
 
 (defmacro minuet-duet-history-test--with-buffer (&rest body)
-  "Run BODY in a temp buffer with isolated global tracking state.
+  "Run BODY in a temp buffer with an isolated snapshot directory.
 Temp buffers are created with `inhibit-buffer-hooks', so
-`kill-buffer-hook' never deregisters them; let-binding the globals
-keeps tests independent.  The mode is disabled before the buffer dies
-so its diff process is cancelled and its snapshot files are deleted,
-any timer created inside is cancelled, and files stranded by the test
-are swept."
+`kill-buffer-hook' never runs for them; the mode is disabled before
+the buffer dies so its diff process is cancelled, its timer chain
+ends, and its snapshot files are deleted.  The let-bound snapshot
+directory is deleted afterwards, sweeping files stranded by the
+test."
   (declare (indent 0))
-  `(let ((minuet-duet-history--buffers nil)
-         (minuet-duet-history--timer nil)
-         (minuet-duet-history--temp-files nil))
+  `(let ((minuet-duet-history--directory nil))
      (unwind-protect
          (with-temp-buffer
            (unwind-protect
                (progn ,@body)
              (when minuet-duet-history-mode
                (minuet-duet-history-mode -1))))
-       (when minuet-duet-history--timer
-         (cancel-timer minuet-duet-history--timer))
-       (dolist (file minuet-duet-history--temp-files)
-         (ignore-errors (delete-file file))))))
+       (minuet-duet-history--delete-directory))))
+
+(defun minuet-duet-history-test--timers-for (buffer)
+  "Return the scheduled history timers of BUFFER on `timer-idle-list'."
+  (cl-remove-if-not
+   (lambda (timer)
+     (and (eq (timer--function timer) #'minuet-duet-history--on-timer)
+          (equal (timer--args timer) (list buffer))))
+   timer-idle-list))
+
+(defun minuet-duet-history-test--directory-files ()
+  "Return the files currently present in the snapshot directory."
+  (and minuet-duet-history--directory
+       (file-directory-p minuet-duet-history--directory)
+       (directory-files minuet-duet-history--directory nil
+                        directory-files-no-dot-files-regexp)))
 
 (defun minuet-duet-history-test--flush ()
   "Flush the current buffer, waiting generously for the async diff.
@@ -219,7 +229,8 @@ edit."
       (minuet-duet-history-test--flush)
       (should-not minuet-duet-history-mode)
       (should-not minuet-duet-history--snapshot-file)
-      (should-not minuet-duet-history--temp-files))))
+      (should-not minuet-duet-history--timer)
+      (should-not (minuet-duet-history-test--directory-files)))))
 
 (ert-deftest minuet-duet-history-mode-refuses-oversized-buffer ()
   "The mode refuses to enable in a buffer over the size cap."
@@ -228,8 +239,9 @@ edit."
     (let ((minuet-duet-history-max-buffer-size 10))
       (minuet-duet-history-mode 1)
       (should-not minuet-duet-history-mode)
-      (should-not (memq (current-buffer) minuet-duet-history--buffers))
-      (should-not minuet-duet-history--temp-files))))
+      (should-not minuet-duet-history--timer)
+      ;; The refusal happens before any snapshot file is allocated.
+      (should-not minuet-duet-history--directory))))
 
 (ert-deftest minuet-duet-history-mode-refuses-missing-diff-program ()
   "The mode refuses to enable when the diff program is not found."
@@ -238,27 +250,27 @@ edit."
     (let ((minuet-duet-history-diff-program "minuet-no-such-diff-xyz"))
       (minuet-duet-history-mode 1)
       (should-not minuet-duet-history-mode)
-      (should-not (memq (current-buffer) minuet-duet-history--buffers))
       (should-not minuet-duet-history--timer)
-      (should-not minuet-duet-history--temp-files))))
+      ;; The refusal happens before any snapshot file is allocated.
+      (should-not minuet-duet-history--directory))))
 
-(ert-deftest minuet-duet-history-refusal-deregisters-stale-registration ()
-  "A size refusal leaves the buffer untracked with no timer running.
+(ert-deftest minuet-duet-history-refusal-leaves-no-timer ()
+  "A size refusal leaves the buffer untracked with no timer scheduled.
 After a local-variable wipe (which tears tracking down via the
 `change-major-mode-hook' teardown), a mode hook re-fire on a buffer
 that grew past the cap must refuse cleanly."
   (minuet-duet-history-test--with-buffer
     (insert "small")
     (minuet-duet-history-mode 1)
-    (should (memq (current-buffer) minuet-duet-history--buffers))
+    (should minuet-duet-history--timer)
     (kill-all-local-variables)
     (goto-char (point-max))
     (insert "\nmore than ten characters\n")
     (let ((minuet-duet-history-max-buffer-size 10))
       (minuet-duet-history-mode 1))
     (should-not minuet-duet-history-mode)
-    (should-not (memq (current-buffer) minuet-duet-history--buffers))
-    (should-not minuet-duet-history--timer)))
+    (should-not minuet-duet-history--timer)
+    (should-not (minuet-duet-history-test--timers-for (current-buffer)))))
 
 (ert-deftest minuet-duet-history-flush-widens-around-narrowing ()
   "Edits made while narrowed diff against the widened buffer content."
@@ -331,9 +343,14 @@ system cannot even encode its content still round-trips."
     (insert "b\n")
     (minuet-duet-history-test--flush)
     (should (= (length minuet-duet-history--entries) 1))
-    (minuet-duet-history-mode 1)
-    (should (= (length minuet-duet-history--entries) 1))
-    (should (equal minuet-duet-history--buffers (list (current-buffer))))))
+    (let ((timer minuet-duet-history--timer))
+      (minuet-duet-history-mode 1)
+      (should (= (length minuet-duet-history--entries) 1))
+      ;; The live timer chain is kept; no second chain is scheduled.
+      (should (eq minuet-duet-history--timer timer))
+      (should (= (length (minuet-duet-history-test--timers-for
+                          (current-buffer)))
+                 1)))))
 
 (ert-deftest minuet-duet-history-reenable-after-local-wipe-reinitializes ()
   "Re-enabling after `kill-all-local-variables' restores tracking.
@@ -343,9 +360,10 @@ re-fires and re-initializes from scratch."
   (minuet-duet-history-test--with-buffer
     (insert "a\nb\n")
     (minuet-duet-history-mode 1)
-    (kill-all-local-variables)
-    (should-not minuet-duet-history--snapshot-file)
-    (should-not (memq (current-buffer) minuet-duet-history--buffers))
+    (let ((old-timer minuet-duet-history--timer))
+      (kill-all-local-variables)
+      (should-not minuet-duet-history--snapshot-file)
+      (should-not (memq old-timer timer-idle-list)))
     (minuet-duet-history-mode 1)
     (should minuet-duet-history--snapshot-file)
     (should (file-exists-p minuet-duet-history--snapshot-file))
@@ -355,8 +373,10 @@ re-fires and re-initializes from scratch."
     (minuet-duet-history-test--flush)
     (should (= (length minuet-duet-history--entries) 1))
     (should (string-match-p "\\+c" (car minuet-duet-history--entries)))
-    ;; Re-registration does not duplicate the buffer in the list.
-    (should (equal minuet-duet-history--buffers (list (current-buffer))))))
+    ;; Re-enabling does not leave a second timer chain behind.
+    (should (= (length (minuet-duet-history-test--timers-for
+                        (current-buffer)))
+               1))))
 
 (ert-deftest minuet-duet-history-reenable-after-snapshot-deletion ()
   "Re-enabling after the snapshot file vanished re-initializes tracking."
@@ -372,6 +392,10 @@ re-fires and re-initializes from scratch."
     (should minuet-duet-history--snapshot-file)
     (should (file-exists-p minuet-duet-history--snapshot-file))
     (should-not minuet-duet-history--entries)
+    ;; The stale timer chain was replaced, not duplicated.
+    (should (= (length (minuet-duet-history-test--timers-for
+                        (current-buffer)))
+               1))
     (goto-char (point-max))
     (insert "c\n")
     (minuet-duet-history-test--flush)
@@ -456,7 +480,7 @@ re-fires and re-initializes from scratch."
       (minuet-duet-history-flush)
       (let ((process minuet-duet-history--process))
         (should process)
-        (minuet-duet-history--flush-all)
+        (minuet-duet-history--on-timer (current-buffer))
         (should (eq minuet-duet-history--process process))
         (minuet-duet-history--start-flush)
         (should (eq minuet-duet-history--process process))))))
@@ -558,15 +582,16 @@ of, and the snapshot files are deleted."
         (should-not minuet-duet-history--entries)
         (should-not (file-exists-p snapshot))
         (should-not (file-exists-p pending))
-        (should-not (memq (current-buffer) minuet-duet-history--buffers))
-        (should-not minuet-duet-history--timer)))))
+        (should-not minuet-duet-history--timer)
+        (should-not (minuet-duet-history-test--timers-for
+                     (current-buffer)))))))
 
 ;;;;;
 ;; Snapshot file lifecycle
 ;;;;;
 
 (ert-deftest minuet-duet-history-disable-deletes-files ()
-  "Disabling the mode deletes both snapshot files and the registry entries."
+  "Disabling the mode deletes both snapshot files."
   (minuet-duet-history-test--with-buffer
     (insert "a\n")
     (minuet-duet-history-mode 1)
@@ -574,39 +599,37 @@ of, and the snapshot files are deleted."
           (pending minuet-duet-history--pending-file))
       (should (file-exists-p snapshot))
       (should (file-exists-p pending))
-      (should (= (length minuet-duet-history--temp-files) 2))
+      ;; Both files live inside the snapshot directory.
+      (should (equal (file-name-directory snapshot)
+                     (file-name-as-directory minuet-duet-history--directory)))
+      (should (= (length (minuet-duet-history-test--directory-files)) 2))
       (minuet-duet-history-mode -1)
       (should-not (file-exists-p snapshot))
       (should-not (file-exists-p pending))
-      (should-not minuet-duet-history--temp-files)
+      (should-not (minuet-duet-history-test--directory-files))
       (should-not minuet-duet-history--snapshot-file)
       (should-not minuet-duet-history--pending-file))))
 
 (ert-deftest minuet-duet-history-kill-buffer-deletes-files ()
-  "Killing a tracked buffer cancels its diff and deletes its files."
-  (let ((minuet-duet-history--buffers nil)
-        (minuet-duet-history--timer nil)
-        (minuet-duet-history--temp-files nil)
+  "Killing a tracked buffer cancels its diff and timer and deletes its files."
+  (let ((minuet-duet-history--directory nil)
         (buffer (generate-new-buffer "minuet-duet-history-kill-test"))
-        snapshot pending)
+        timer snapshot pending)
     (unwind-protect
         (progn
           (with-current-buffer buffer
             (insert "a\n")
             (minuet-duet-history-mode 1)
-            (setq snapshot minuet-duet-history--snapshot-file
+            (setq timer minuet-duet-history--timer
+                  snapshot minuet-duet-history--snapshot-file
                   pending minuet-duet-history--pending-file))
+          (should (memq timer timer-idle-list))
           (kill-buffer buffer)
           (should-not (file-exists-p snapshot))
           (should-not (file-exists-p pending))
-          (should-not minuet-duet-history--temp-files)
-          (should-not minuet-duet-history--buffers)
-          (should-not minuet-duet-history--timer))
+          (should-not (memq timer timer-idle-list)))
       (when (buffer-live-p buffer) (kill-buffer buffer))
-      (when minuet-duet-history--timer
-        (cancel-timer minuet-duet-history--timer))
-      (dolist (file minuet-duet-history--temp-files)
-        (ignore-errors (delete-file file))))))
+      (minuet-duet-history--delete-directory))))
 
 (ert-deftest minuet-duet-history-local-wipe-tears-down-tracking ()
   "A local-variable wipe tears tracking down before its state is lost.
@@ -619,66 +642,93 @@ nothing behind.  Re-enabling afterwards re-initializes from scratch."
     (insert "a\n")
     (minuet-duet-history-mode 1)
     (let ((old-snapshot minuet-duet-history--snapshot-file)
-          (old-pending minuet-duet-history--pending-file))
+          (old-pending minuet-duet-history--pending-file)
+          (old-timer minuet-duet-history--timer))
       (kill-all-local-variables)
       (should-not (file-exists-p old-snapshot))
       (should-not (file-exists-p old-pending))
-      (should-not minuet-duet-history--temp-files)
-      (should-not (memq (current-buffer) minuet-duet-history--buffers))
+      (should-not (minuet-duet-history-test--directory-files))
+      (should-not (memq old-timer timer-idle-list))
       ;; Re-enabling (as the new major mode's hooks would) starts fresh.
       (minuet-duet-history-mode 1)
       (should (file-exists-p minuet-duet-history--snapshot-file))
-      (should (= (length minuet-duet-history--temp-files) 2)))))
+      (should (= (length (minuet-duet-history-test--directory-files)) 2)))))
 
-(ert-deftest minuet-duet-history-cleanup-all-sweeps-registry ()
-  "`minuet-duet-history--cleanup-all' deletes every allocated file."
+(ert-deftest minuet-duet-history-delete-directory-sweeps-files ()
+  "`minuet-duet-history--delete-directory' removes the directory and files.
+This is the `kill-emacs' backstop that also collects files stranded
+by buffers killed with their hooks inhibited."
   (minuet-duet-history-test--with-buffer
     (insert "a\n")
     (minuet-duet-history-mode 1)
-    (let ((snapshot minuet-duet-history--snapshot-file)
+    (should (file-directory-p minuet-duet-history--directory))
+    (should (memq #'minuet-duet-history--delete-directory kill-emacs-hook))
+    (let ((directory minuet-duet-history--directory)
+          (snapshot minuet-duet-history--snapshot-file)
           (pending minuet-duet-history--pending-file))
-      (minuet-duet-history--cleanup-all)
+      (minuet-duet-history--delete-directory)
       (should-not (file-exists-p snapshot))
       (should-not (file-exists-p pending))
-      (should-not minuet-duet-history--temp-files))))
+      (should-not (file-exists-p directory))
+      (should-not minuet-duet-history--directory))))
 
 ;;;;;
 ;; Timer & buffer lifecycle
 ;;;;;
 
 (ert-deftest minuet-duet-history-timer-lifecycle ()
-  "One shared idle timer exists while any buffer is tracked."
-  (let ((minuet-duet-history--buffers nil)
-        (minuet-duet-history--timer nil)
-        (minuet-duet-history--temp-files nil)
+  "Each tracked buffer owns its own scheduled idle timer."
+  (let ((minuet-duet-history--directory nil)
         (buf1 (generate-new-buffer "minuet-duet-history-test-1"))
         (buf2 (generate-new-buffer "minuet-duet-history-test-2")))
     (unwind-protect
         (progn
           (with-current-buffer buf1 (minuet-duet-history-mode 1))
-          (should minuet-duet-history--timer)
           (with-current-buffer buf2 (minuet-duet-history-mode 1))
-          (should (= (length minuet-duet-history--buffers) 2))
-          (with-current-buffer buf1 (minuet-duet-history-mode -1))
-          (should minuet-duet-history--timer)
-          (should (equal minuet-duet-history--buffers (list buf2)))
-          (kill-buffer buf2)
-          (should-not minuet-duet-history--buffers)
-          (should-not minuet-duet-history--timer))
+          (let ((timer1 (buffer-local-value 'minuet-duet-history--timer buf1))
+                (timer2 (buffer-local-value 'minuet-duet-history--timer buf2)))
+            (should (memq timer1 timer-idle-list))
+            (should (memq timer2 timer-idle-list))
+            (should-not (eq timer1 timer2))
+            ;; Disabling one buffer cancels only its own timer.
+            (with-current-buffer buf1 (minuet-duet-history-mode -1))
+            (should-not (memq timer1 timer-idle-list))
+            (should-not (buffer-local-value 'minuet-duet-history--timer buf1))
+            (should (memq timer2 timer-idle-list))
+            (kill-buffer buf2)
+            (should-not (memq timer2 timer-idle-list))))
       (when (buffer-live-p buf1) (kill-buffer buf1))
       (when (buffer-live-p buf2) (kill-buffer buf2))
-      (when minuet-duet-history--timer
-        (cancel-timer minuet-duet-history--timer))
-      (dolist (file minuet-duet-history--temp-files)
-        (ignore-errors (delete-file file))))))
+      (minuet-duet-history--delete-directory))))
+
+(ert-deftest minuet-duet-history-on-timer-reschedules ()
+  "A timer run flushes pending edits and schedules the buffer's next timer."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (let ((fired minuet-duet-history--timer))
+      (goto-char (point-max))
+      (insert "b\n")
+      ;; Simulate the scheduled timer firing: `timer-event-handler'
+      ;; pulls a one-shot timer off the idle list before running it.
+      (cancel-timer fired)
+      (minuet-duet-history--on-timer (current-buffer))
+      (should minuet-duet-history--timer)
+      (should-not (eq minuet-duet-history--timer fired))
+      (should (memq minuet-duet-history--timer timer-idle-list))
+      (should (= (length (minuet-duet-history-test--timers-for
+                          (current-buffer)))
+                 1))
+      (minuet-test--wait-until
+       (lambda () (= (length minuet-duet-history--entries) 1))
+       5 "the timer flush never recorded the pending edit"))))
 
 (ert-deftest minuet-duet-history-clone-registers-for-idle-flush ()
   "A clone inheriting enabled history mode participates in idle flushes.
-The clone gets its own snapshot files instead of aliasing the base
-buffer's, and disabling it leaves the base buffer's files alone."
-  (let ((minuet-duet-history--buffers nil)
-        (minuet-duet-history--timer nil)
-        (minuet-duet-history--temp-files nil)
+The clone gets its own snapshot files and timer chain instead of
+aliasing the base buffer's, and disabling it leaves the base buffer's
+alone."
+  (let ((minuet-duet-history--directory nil)
         (base (generate-new-buffer "minuet-duet-history-clone-base"))
         clone)
     (unwind-protect
@@ -694,88 +744,79 @@ buffer's, and disabling it leaves the base buffer's files alone."
                     "minuet-duet-history-clone-indirect")
                    nil)))
           (should (buffer-local-value 'minuet-duet-history-mode clone))
-          (should (memq clone minuet-duet-history--buffers))
           (should (equal (buffer-local-value
                           'minuet-duet-history--entries clone)
                          (buffer-local-value
                           'minuet-duet-history--entries base)))
-          ;; The clone allocated its own snapshot files.
+          ;; The clone allocated its own snapshot files and timer.
           (should-not (equal (buffer-local-value
                               'minuet-duet-history--snapshot-file clone)
                              (buffer-local-value
                               'minuet-duet-history--snapshot-file base)))
+          (should-not (eq (buffer-local-value
+                           'minuet-duet-history--timer clone)
+                          (buffer-local-value
+                           'minuet-duet-history--timer base)))
+          (should (memq (buffer-local-value 'minuet-duet-history--timer clone)
+                        timer-idle-list))
           (with-current-buffer clone
             (goto-char (point-max))
             (insert "b\n"))
-          (minuet-duet-history--flush-all)
+          (minuet-duet-history--on-timer clone)
           (minuet-test--wait-until
            (lambda () (= (length (buffer-local-value
                                   'minuet-duet-history--entries clone))
                          2))
            5 "clone never recorded the idle flush")
-          ;; The clone keeps the shared timer alive independently of
-          ;; the base buffer, whose files are untouched by the clone.
+          ;; Disabling the base buffer leaves the clone's timer chain
+          ;; and files untouched.
           (let ((base-snapshot (buffer-local-value
                                 'minuet-duet-history--snapshot-file base)))
             (with-current-buffer base
               (minuet-duet-history-mode -1))
             (should-not (file-exists-p base-snapshot)))
-          (should minuet-duet-history--timer)
-          (should (equal minuet-duet-history--buffers (list clone)))
+          (should (memq (buffer-local-value 'minuet-duet-history--timer clone)
+                        timer-idle-list))
           (should (file-exists-p (buffer-local-value
                                   'minuet-duet-history--snapshot-file clone))))
       (when (buffer-live-p clone) (kill-buffer clone))
       (when (buffer-live-p base) (kill-buffer base))
-      (when minuet-duet-history--timer
-        (cancel-timer minuet-duet-history--timer))
-      (dolist (file minuet-duet-history--temp-files)
-        (ignore-errors (delete-file file))))))
+      (minuet-duet-history--delete-directory))))
 
-(ert-deftest minuet-duet-history-flush-all-flushes-and-prunes ()
-  "The timer flush records pending edits and prunes dead buffers.
-Files left behind by a buffer that died without running its kill
-hooks stay registered until the last tracked buffer deregisters,
-which deletes the whole registry (the documented won't-pursue
-trade-off for this rare case)."
-  (let ((minuet-duet-history--buffers nil)
-        (minuet-duet-history--timer nil)
-        (minuet-duet-history--temp-files nil)
-        (buf1 (generate-new-buffer "minuet-duet-history-flush-all-1"))
-        (buf2 (generate-new-buffer "minuet-duet-history-flush-all-2"))
-        buf2-snapshot)
+(ert-deftest minuet-duet-history-on-timer-dead-buffer-ends-chain ()
+  "The timer run of a buffer that died without hooks ends its chain.
+Simulates a tracked buffer killed with its kill hook missing (e.g.
+`inhibit-buffer-hooks'): the next timer run finds the buffer dead,
+schedules no successor, and leaves the stranded snapshot files for
+the directory sweep at `kill-emacs' (the documented trade-off for
+this rare case)."
+  (let ((minuet-duet-history--directory nil)
+        (buffer (generate-new-buffer "minuet-duet-history-dead-buffer"))
+        timer snapshot)
     (unwind-protect
         (progn
-          (with-current-buffer buf1
+          (with-current-buffer buffer
             (insert "a\n")
             (minuet-duet-history-mode 1)
-            (goto-char (point-max))
-            (insert "b\n"))
-          (with-current-buffer buf2
-            (minuet-duet-history-mode 1)
-            (setq buf2-snapshot minuet-duet-history--snapshot-file)
-            ;; Simulate a buffer that died without running its hooks.
+            (setq timer minuet-duet-history--timer
+                  snapshot minuet-duet-history--snapshot-file)
+            ;; Simulate a buffer that dies without running its hooks.
             (remove-hook 'kill-buffer-hook
                          #'minuet-duet-history--on-kill-buffer t))
-          (kill-buffer buf2)
-          (minuet-duet-history--flush-all)
-          (should (equal minuet-duet-history--buffers (list buf1)))
-          (minuet-test--wait-until
-           (lambda () (= (length (buffer-local-value
-                                  'minuet-duet-history--entries buf1))
-                         1))
-           5 "flush-all never recorded buf1's pending edit")
-          ;; buf2's files linger in the registry until the last tracked
-          ;; buffer deregisters, which deletes the whole registry.
-          (should (file-exists-p buf2-snapshot))
-          (kill-buffer buf1)
-          (should-not (file-exists-p buf2-snapshot))
-          (should-not minuet-duet-history--temp-files))
-      (when (buffer-live-p buf1) (kill-buffer buf1))
-      (when (buffer-live-p buf2) (kill-buffer buf2))
-      (when minuet-duet-history--timer
-        (cancel-timer minuet-duet-history--timer))
-      (dolist (file minuet-duet-history--temp-files)
-        (ignore-errors (delete-file file))))))
+          (kill-buffer buffer)
+          ;; Nothing cancelled the timer, so it is still scheduled and
+          ;; will fire once more.  Simulate that firing.
+          (should (memq timer timer-idle-list))
+          (cancel-timer timer)
+          (minuet-duet-history--on-timer buffer)
+          ;; No successor was scheduled: the chain has ended.
+          (should-not (minuet-duet-history-test--timers-for buffer))
+          ;; The stranded files await the directory sweep.
+          (should (file-exists-p snapshot))
+          (minuet-duet-history--delete-directory)
+          (should-not (file-exists-p snapshot)))
+      (when (buffer-live-p buffer) (kill-buffer buffer))
+      (minuet-duet-history--delete-directory))))
 
 ;;;;;
 ;; Prompt text

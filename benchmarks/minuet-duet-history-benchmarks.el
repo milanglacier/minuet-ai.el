@@ -249,8 +249,9 @@ MINUET_BENCH_BURST_EDITS to change the default workload."
             (push (apply #'minuet-duet-history-benchmark--measure case)
                   results))
           (minuet-duet-history-benchmark--print (nreverse results)))
-      (when minuet-duet-history--timer
-        (cancel-timer minuet-duet-history--timer)))))
+      ;; Per-buffer timers are cancelled when each case disables the
+      ;; mode; sweep the snapshot directory the run created.
+      (minuet-duet-history--delete-directory))))
 
 (provide 'minuet-duet-history-benchmarks)
 ;;; minuet-duet-history-benchmarks.el ends here
