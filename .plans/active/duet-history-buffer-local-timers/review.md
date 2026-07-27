@@ -257,3 +257,68 @@ content-bearing directory was removed and the global directory state cleared.
 - Forced shutdown from inside the benchmark:
   `shutdown-live-directory-exists=nil shared-directory=nil`.
 - `git diff --check`: clean.
+
+## Next-round review: current HEAD `2e008a2`
+
+Reviewed: `2e008a2e55c06da4e92f2f97f1818c9743462af3` on
+`feat/recent-edit-history-V2`, including the missing-directory recovery and
+benchmark ownership fixes.
+
+### Verdict
+
+**Changes requested.** Both previously reported shared-directory failures are
+fixed, but the new recovery predicate also treats loss of the reusable pending
+scratch file as loss of the baseline, which silently drops an otherwise
+recoverable edit burst.
+
+### Verification performed
+
+- `make check`: 116/116 tests pass.
+- `make compile`: clean byte-compilation with no warnings.
+- `make benchmark`: all production-sized scenarios complete successfully.
+- `git diff --check`: clean.
+- Focused regression check: after deleting only
+  `minuet-duet-history--pending-file`, the parent commit records the next edit
+  (because `write-region` recreates the scratch path), while current HEAD
+  records no entry and advances the snapshot tick.
+
+### Findings
+
+#### 1. [P2] Preserve the baseline when only the pending file disappears
+
+`minuet-duet-history.el:285-286` — when an external temp cleaner removes only
+`minuet-duet-history--pending-file` while the shared directory and baseline
+snapshot remain intact, this predicate sends the next dirty flush through
+`--take-snapshot`; that deletes the valid baseline and snapshots the edited
+content as a replacement, so the burst is silently omitted even though it can
+still be diffed by recreating only the scratch file. Distinguish a missing
+pending file from a missing baseline and replace the scratch file without
+re-baselining.
+
+### Additional notes
+
+- Deleting the whole shared directory now re-baselines each affected live
+  buffer once and later edits flush normally, including when another buffer
+  created the replacement directory first.
+- The benchmark no longer shadows the directory consumed by
+  `kill-emacs-hook`, and its per-case cleanup leaves unrelated tracked
+  buffers' files and timer chains intact.
+- The previously accepted native-Windows open-file cleanup risk is unchanged
+  and is not repeated as a finding.
+
+## Maintainer decision: missing pending scratch file (won't fix)
+
+The pending-file-only finding is acknowledged but will not be pursued. It
+requires an external process to delete one implementation-owned scratch file
+while leaving both its private temporary directory and the valid baseline
+snapshot intact; no normal history lifecycle produces that state. An
+individual-file cleaner using modification age could theoretically do so, but
+the required long-lived session, cleanup policy, and timing make it a narrow
+environmental edge case. Loss of the whole temporary directory or the
+baseline remains covered by the recovery path.
+
+The consequence is limited to omitting one auxiliary history burst: current
+buffer contents and previously recorded in-memory history are preserved, and
+tracking continues from a fresh baseline. That impact does not justify adding
+another recovery branch and its associated tests. The P2 classification is
+therefore rejected and the behavior is accepted as a documented edge case.
