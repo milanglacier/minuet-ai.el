@@ -151,3 +151,109 @@ accepted rather than resolved.
 
 After this decision, `make check` passes 114/114 tests, byte-compilation is
 clean, and `make benchmark` completes successfully.
+
+## Next-round review: current HEAD `1bba188`
+
+Reviewed: `1bba188f8f979c1c5ec20c536232d7e24276de36` on
+`feat/recent-edit-history-V2`, including the follow-up benchmark isolation and
+documentation changes.
+
+### Verdict
+
+**Changes requested.** The per-buffer timer chain and normal enable, disable,
+clone, and teardown paths remain sound, and the benchmark no longer deletes
+snapshots belonging to buffers that were already tracked when it started.
+Two shared-directory lifecycle cases still break recovery or cleanup.
+
+### Verification performed
+
+- `make check`: 114/114 tests pass.
+- `make compile`: clean byte-compilation with no warnings.
+- `make benchmark`: all production-sized scenarios complete successfully.
+- `git diff --check`: clean.
+- Reproduced deletion of the session directory beneath an enabled buffer:
+  repeated public flushes leave the modification tick dirty and record no
+  entry.
+- Reproduced shutdown inside the benchmark's dynamic directory binding: the
+  benchmark directory is removed, but the pre-existing live session directory
+  and its two snapshots remain after Emacs exits.
+
+### Findings
+
+#### 1. [P2] Reallocate snapshots when the shared directory disappears
+
+`minuet-duet-history.el:245-248` — if a temp cleaner or the user removes the
+session directory while an already-enabled buffer remains live, this recovery
+check is never reached for that buffer: `--take-snapshot` sees two non-nil path
+variables and does not allocate again. Every idle or prediction flush then
+tries `write-region` below the missing parent, logs an error, leaves the tick
+dirty, and repeats indefinitely; creating a replacement directory for a later
+buffer does not repair the old paths. Detect the missing directory/snapshot
+state before flushing and re-baseline each affected live buffer.
+
+#### 2. [P2] Preserve the outer directory for shutdown during benchmarks
+
+`benchmarks/minuet-duet-history-benchmarks.el:204` — if the interactive
+benchmark is run while ordinary buffers are tracked and Emacs exits before the
+benchmark returns, this dynamic binding shadows the live session directory
+while `kill-emacs-hook` runs. The hook deletes only the benchmark directory
+(or nothing before one is created), so the original content-bearing directory
+survives process exit. Keep the outer directory reachable by shutdown cleanup,
+or isolate benchmark ownership without dynamically hiding state consumed by
+the global exit hook.
+
+### Additional notes
+
+- The previously reported README mismatch is fixed.
+- The normal benchmark unwind now isolates its own snapshots correctly.
+- The native-Windows in-flight shutdown behavior remains an explicitly
+  accepted risk from the preceding review and is not repeated as a new
+  finding here.
+
+## Fix summaries for the next-round findings
+
+### 1. [P2] Missing shared-directory recovery — resolved
+
+Snapshot state is now validated before it is reused: the shared directory and
+both buffer-local snapshot files must still exist, with both paths naming
+regular files.
+
+`minuet-duet-history--take-snapshot` discards stale paths and allocates fresh
+files when this invariant is broken. Before a dirty buffer starts a diff, it
+uses that path to re-baseline its current contents. The unavailable burst
+cannot be reconstructed after its baseline has been deleted, but earlier
+in-memory history entries are retained, the snapshot tick becomes clean, and
+later edits are recorded normally.
+
+Regression coverage deletes the session directory beneath an enabled buffer
+and verifies the new directory, files, retained history, unchanged timer
+chain, and subsequent successful diff. A second test covers two live buffers:
+after the first creates the replacement directory, the second independently
+replaces its paths from the deleted directory and joins the new one.
+
+### 2. [P2] Benchmark shutdown directory ownership — resolved
+
+The benchmark now reuses the normal session snapshot directory without
+dynamically binding `minuet-duet-history--directory`. Each measured case
+already disables its own buffer in an unwind and thereby deletes only that
+buffer's two files, so the benchmark's outer recursive directory sweep has
+been removed. The shared directory remains owned by the normal
+`kill-emacs-hook`, which can now always see and remove the live session
+directory if Emacs exits during the benchmark.
+
+Per the earlier maintainer decision, the benchmark module remains outside the
+ERT suite. A reduced interactive benchmark was run beside an existing tracked
+buffer and left its directory, files, mode, and timer intact. A forced
+`kill-emacs` from inside the benchmark confirmed that the pre-existing
+content-bearing directory was removed and the global directory state cleared.
+
+### Verification after fixes
+
+- `make check`: 116/116 tests pass.
+- `make compile`: clean byte-compilation with no warnings.
+- `make benchmark`: all production-sized scenarios complete successfully.
+- Reduced interactive benchmark alongside a tracked buffer:
+  `live-state-after-benchmark=t`.
+- Forced shutdown from inside the benchmark:
+  `shutdown-live-directory-exists=nil shared-directory=nil`.
+- `git diff --check`: clean.

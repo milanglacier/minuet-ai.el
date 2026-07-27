@@ -199,10 +199,10 @@ Label the result NAME."
 Set MINUET_BENCH_LINES, MINUET_BENCH_REPETITIONS, or
 MINUET_BENCH_BURST_EDITS to change the default workload."
   (interactive)
-  ;; Isolate this run from buffers already tracked in an interactive
-  ;; Emacs: the unwind cleanup below recursively deletes this directory.
-  (let* ((minuet-duet-history--directory nil)
-         (minuet-duet-history-flush-timeout 30)
+  ;; Reuse the session snapshot directory: each measured case disables
+  ;; its own buffer and deletes its files, while the directory remains
+  ;; visible to the global `kill-emacs-hook' cleanup.
+  (let* ((minuet-duet-history-flush-timeout 30)
          (runs minuet-duet-history-benchmark-repetitions)
          (full-runs (min 3 runs))
          (region-lines minuet-duet-history-max-region-lines)
@@ -242,19 +242,14 @@ MINUET_BENCH_BURST_EDITS to change the default workload."
                    (minuet-duet-history-benchmark--frequent t t))
                  #'minuet-duet-history-benchmark--edit-burst)))
          results)
-    (unwind-protect
-        (progn
-          (princ (format "Emacs %s; %d lines; %d edits/burst\n\n"
-                         emacs-version
-                         minuet-duet-history-benchmark-lines
-                         minuet-duet-history-benchmark-burst-edits))
-          (dolist (case cases)
-            (push (apply #'minuet-duet-history-benchmark--measure case)
-                  results))
-          (minuet-duet-history-benchmark--print (nreverse results)))
-      ;; This directory is dynamically isolated from live tracked
-      ;; buffers; sweep only the snapshots the benchmark run created.
-      (minuet-duet-history--delete-directory))))
+    (princ (format "Emacs %s; %d lines; %d edits/burst\n\n"
+                   emacs-version
+                   minuet-duet-history-benchmark-lines
+                   minuet-duet-history-benchmark-burst-edits))
+    (dolist (case cases)
+      (push (apply #'minuet-duet-history-benchmark--measure case)
+            results))
+    (minuet-duet-history-benchmark--print (nreverse results))))
 
 (provide 'minuet-duet-history-benchmarks)
 ;;; minuet-duet-history-benchmarks.el ends here

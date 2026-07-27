@@ -276,10 +276,19 @@ untested because no Windows machine is available."
   (setq minuet-duet-history--snapshot-file nil
         minuet-duet-history--pending-file nil))
 
+(defun minuet-duet-history--snapshot-state-valid-p ()
+  "Return non-nil when the shared directory and this buffer's files exist."
+  (and minuet-duet-history--directory
+       (file-directory-p minuet-duet-history--directory)
+       minuet-duet-history--snapshot-file
+       (file-regular-p minuet-duet-history--snapshot-file)
+       minuet-duet-history--pending-file
+       (file-regular-p minuet-duet-history--pending-file)))
+
 (defun minuet-duet-history--take-snapshot ()
   "Snapshot the current buffer content and modification tick."
-  (unless (and minuet-duet-history--snapshot-file
-               minuet-duet-history--pending-file)
+  (unless (minuet-duet-history--snapshot-state-valid-p)
+    (minuet-duet-history--delete-files)
     (minuet-duet-history--allocate-files))
   (setq minuet-duet-history--snapshot-tick
         (minuet-duet-history--write-snapshot
@@ -318,7 +327,10 @@ Writes the buffer content to the pending snapshot file and starts an
 asynchronous diff against the last snapshot; the process sentinel
 records the result and updates the snapshot.  Does nothing when the
 buffer text is unchanged since the last flush or a diff is already in
-flight.  Pending edits are detected by comparing
+flight.  If the snapshot directory or baseline disappeared externally,
+the current content becomes a fresh baseline; existing history is kept,
+but the burst whose baseline was lost cannot be recorded.  Pending edits
+are detected by comparing
 `buffer-chars-modified-tick' (which ignores property-only changes)
 against the snapshot tick rather than via `after-change-functions', so
 edits made with modification hooks inhibited (e.g. by
@@ -328,8 +340,12 @@ recorded too."
     (when (and minuet-duet-history-mode
                (not minuet-duet-history--process)
                (not (eql tick minuet-duet-history--snapshot-tick)))
-      (if (> (buffer-size) minuet-duet-history-max-buffer-size)
-          (minuet-duet-history--disable-oversized-buffer)
+      (cond
+       ((> (buffer-size) minuet-duet-history-max-buffer-size)
+        (minuet-duet-history--disable-oversized-buffer))
+       ((not (minuet-duet-history--snapshot-state-valid-p))
+        (minuet-duet-history--take-snapshot))
+       (t
         (let ((pending-tick (minuet-duet-history--write-snapshot
                              minuet-duet-history--pending-file))
               (stdout (generate-new-buffer " *minuet-duet-history-diff*" t))
@@ -360,7 +376,7 @@ recorded too."
             (error
              (kill-buffer stdout)
              (kill-buffer stderr)
-             (signal (car err) (cdr err)))))))))
+             (signal (car err) (cdr err))))))))))
 
 (defun minuet-duet-history--sentinel (process _event)
   "Record the output of diff PROCESS as a history entry.
@@ -538,8 +554,7 @@ intent from what they have been doing."
        ;; reaches this branch: the `change-major-mode-hook' teardown
        ;; disables the mode first.)
        ((and minuet-duet-history--timer
-             minuet-duet-history--snapshot-file
-             (file-exists-p minuet-duet-history--snapshot-file))
+             (minuet-duet-history--snapshot-state-valid-p))
         (add-hook 'change-major-mode-hook
                   #'minuet-duet-history--on-major-mode-change nil t)
         (add-hook 'clone-indirect-buffer-hook

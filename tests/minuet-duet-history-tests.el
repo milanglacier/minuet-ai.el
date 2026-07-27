@@ -402,6 +402,101 @@ re-fires and re-initializes from scratch."
     (should (= (length minuet-duet-history--entries) 1))
     (should (string-match-p "\\+c" (car minuet-duet-history--entries)))))
 
+(ert-deftest minuet-duet-history-flush-rebaselines-after-directory-deletion ()
+  "A tracked buffer recovers when its snapshot directory disappears.
+The unavailable burst is absorbed into a fresh baseline, existing
+history is retained, and later edits are recorded normally."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (minuet-duet-history-mode 1)
+    (goto-char (point-max))
+    (insert "recorded-before-deletion\n")
+    (minuet-duet-history-test--flush)
+    (let ((entries (copy-sequence minuet-duet-history--entries))
+          (old-directory minuet-duet-history--directory)
+          (old-snapshot minuet-duet-history--snapshot-file)
+          (old-pending minuet-duet-history--pending-file)
+          (timer minuet-duet-history--timer))
+      (delete-directory old-directory t)
+      (goto-char (point-max))
+      (insert "unavailable-baseline\n")
+      (minuet-duet-history-test--flush)
+      (should (file-directory-p minuet-duet-history--directory))
+      (should-not (equal minuet-duet-history--directory old-directory))
+      (should-not (equal minuet-duet-history--snapshot-file old-snapshot))
+      (should-not (equal minuet-duet-history--pending-file old-pending))
+      (should (file-exists-p minuet-duet-history--snapshot-file))
+      (should (file-exists-p minuet-duet-history--pending-file))
+      (should
+       (equal (file-name-directory minuet-duet-history--snapshot-file)
+              (file-name-as-directory minuet-duet-history--directory)))
+      (should
+       (equal (file-name-directory minuet-duet-history--pending-file)
+              (file-name-as-directory minuet-duet-history--directory)))
+      (should (equal minuet-duet-history--entries entries))
+      (should (eql minuet-duet-history--snapshot-tick
+                   (buffer-chars-modified-tick)))
+      (should (eq minuet-duet-history--timer timer))
+      (goto-char (point-max))
+      (insert "recorded-after-recovery\n")
+      (minuet-duet-history-test--flush)
+      (should (= (length minuet-duet-history--entries) 2))
+      (should (string-match-p "\\+recorded-after-recovery"
+                              (car minuet-duet-history--entries))))))
+
+(ert-deftest minuet-duet-history-flush-repairs-each-stale-buffer ()
+  "Every live buffer replaces stale paths after the directory is recreated."
+  (let ((minuet-duet-history--directory nil)
+        (buffer-1 (generate-new-buffer "minuet-duet-history-recovery-1"))
+        (buffer-2 (generate-new-buffer "minuet-duet-history-recovery-2")))
+    (unwind-protect
+        (progn
+          (dolist (buffer (list buffer-1 buffer-2))
+            (with-current-buffer buffer
+              (insert "a\n")
+              (minuet-duet-history-mode 1)))
+          (let ((old-directory minuet-duet-history--directory))
+            (delete-directory old-directory t)
+            ;; The first buffer creates the replacement session directory.
+            (with-current-buffer buffer-1
+              (goto-char (point-max))
+              (insert "absorbed-1\n")
+              (minuet-duet-history-test--flush))
+            (let ((new-directory minuet-duet-history--directory))
+              (should (file-directory-p new-directory))
+              (should-not (equal new-directory old-directory))
+              ;; The second buffer still has paths in the old directory,
+              ;; so it must independently re-baseline into the replacement.
+              (with-current-buffer buffer-2
+                (should (equal
+                         (file-name-directory
+                          minuet-duet-history--snapshot-file)
+                         (file-name-as-directory old-directory)))
+                (goto-char (point-max))
+                (insert "absorbed-2\n")
+                (minuet-duet-history-test--flush)
+                (should
+                 (equal (file-name-directory
+                         minuet-duet-history--snapshot-file)
+                        (file-name-as-directory new-directory)))
+                (should (eql minuet-duet-history--snapshot-tick
+                             (buffer-chars-modified-tick)))
+                (goto-char (point-max))
+                (insert "recorded-after-recovery\n")
+                (minuet-duet-history-test--flush)
+                (should (= (length minuet-duet-history--entries) 1))
+                (should (string-match-p "\\+recorded-after-recovery"
+                                        (car minuet-duet-history--entries))))
+              (should
+               (= (length (minuet-duet-history-test--directory-files)) 4)))))
+      (dolist (buffer (list buffer-1 buffer-2))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer
+            (when minuet-duet-history-mode
+              (minuet-duet-history-mode -1)))
+          (kill-buffer buffer)))
+      (minuet-duet-history--delete-directory))))
+
 (ert-deftest minuet-duet-history-flush-api-never-signals ()
   "`minuet-duet-history-flush' logs flush errors instead of signaling."
   (minuet-duet-history-test--with-buffer
