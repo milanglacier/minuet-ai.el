@@ -253,7 +253,9 @@ when it is first created."
   "Delete the snapshot directory and everything in it.
 Runs from `kill-emacs-hook'; also collects files stranded by buffers
 that died without running `kill-buffer-hook'.  In-flight diff
-processes are not cancelled: they carry :noquery and die with Emacs."
+processes are not cancelled: they carry :noquery and die with Emacs.
+Native Windows may refuse to delete open snapshots, but this is
+untested because no Windows machine is available."
   (when minuet-duet-history--directory
     (ignore-errors (delete-directory minuet-duet-history--directory t))
     (setq minuet-duet-history--directory nil)))

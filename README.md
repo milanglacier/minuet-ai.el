@@ -599,11 +599,12 @@ edits and include them in duet prompts as unified diffs:
 (add-hook 'prog-mode-hook #'minuet-duet-history-mode)
 ```
 
-Tracking is lightweight: nothing runs per keystroke. A shared idle timer
-detects changed buffers by their modification tick, snapshots them to
-temporary files with `write-region` (no Lisp allocation), and diffs the
-snapshots asynchronously with an external diff program, producing one
-coalesced history entry per editing burst. `minuet-duet-predict` waits up to
+Tracking is lightweight: nothing runs per keystroke. Each tracked buffer owns
+a one-shot idle timer that detects changes by its modification tick and
+schedules the buffer's next check. Changed buffers are snapshotted to temporary
+files with `write-region` (no Lisp allocation) and diffed asynchronously with
+an external diff program, producing one coalesced history entry per editing
+burst. `minuet-duet-predict` waits up to
 `minuet-duet-history-flush-timeout` seconds for pending edits to be recorded
 before building its prompt, so the burst you just typed is normally included;
 if the diff is somehow slower, the prediction proceeds with history one burst
