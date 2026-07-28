@@ -119,6 +119,25 @@ BUDGET defaults to a bound larger than any test diff."
                   20)
                  "@@ -1 +1 @@\n-a\n+b")))
 
+(ert-deftest minuet-duet-history-record-entry-honors-buffer-local-budgets ()
+  "Entry recording reads both budget options from the tracked buffer."
+  (dolist (budget-variable
+           '(minuet-duet-history-max-entry-chars
+             minuet-duet-history-max-prompt-chars))
+    (let ((minuet-duet-history-max-entry-chars 10000)
+          (minuet-duet-history-max-prompt-chars 10000)
+          (stdout (generate-new-buffer
+                   " *minuet-duet-history-budget-test*")))
+      (unwind-protect
+          (minuet-duet-history-test--with-buffer
+            (set (make-local-variable budget-variable) 20)
+            (with-current-buffer stdout
+              (insert "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n"))
+            (minuet-duet-history--record-entry stdout)
+            (should (equal minuet-duet-history--entries
+                           '("@@ -1 +1 @@\n-a\n+b"))))
+        (kill-buffer stdout)))))
+
 ;;;;;
 ;; Entry bounding
 ;;;;;

@@ -430,10 +430,10 @@ The diff is bounded to `minuet-duet-history-max-entry-chars', and to
 always included in prompts: a longer diff keeps only its leading
 whole hunks that fit.  The edit is skipped (with a log message) when
 the output has no hunks or not even the first hunk fits."
-  (if-let* ((entry (with-current-buffer stdout
-                     (minuet-duet-history--entry-string
-                      (min minuet-duet-history-max-entry-chars
-                           minuet-duet-history-max-prompt-chars)))))
+  (if-let* ((budget (min minuet-duet-history-max-entry-chars
+                         minuet-duet-history-max-prompt-chars))
+            (entry (with-current-buffer stdout
+                     (minuet-duet-history--entry-string budget))))
       (minuet-duet-history--push-entry entry)
     (minuet--log
      (format "Minuet duet history: no hunks within `minuet-duet-history-max-entry-chars' in diff output for %s; skipped."
