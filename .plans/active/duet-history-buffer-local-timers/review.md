@@ -322,3 +322,43 @@ buffer contents and previously recorded in-memory history are preserved, and
 tracking continues from a fresh baseline. That impact does not justify adding
 another recovery branch and its associated tests. The P2 classification is
 therefore rejected and the behavior is accepted as a documented edge case.
+
+## Next-round review: current HEAD `3b9bbe2`
+
+Reviewed: `3b9bbe2a50cb3bad161f74f5da812a68b13d6ff6` on
+`feat/recent-edit-history-V2`. `minuet-duet-history.el` is unchanged from
+`2e008a2`; the intervening commit records the preceding review and maintainer
+decision.
+
+### Verdict
+
+**Merge-ready.** No new actionable findings. The per-buffer timer chain,
+asynchronous snapshot state machine, lifecycle teardown, missing-directory
+recovery, and shared benchmark-directory ownership remain internally
+consistent under the reviewed paths.
+
+### Verification performed
+
+- `make check`: 116/116 tests pass.
+- `make compile`: clean byte-compilation with no warnings.
+- `make benchmark`: all production-sized benchmark scenarios complete
+  successfully.
+- `git diff --check`: clean.
+- A 500-iteration rapid-flush stress check recorded every edit, left no
+  in-flight process after each bounded flush, and kept the snapshot tick equal
+  to the buffer modification tick.
+- Re-audited the timer scheduling against the one-shot idle-timer lifecycle,
+  process cancellation/late-sentinel guard, indirect-clone isolation, and
+  recovery when multiple buffers retain paths from a deleted session
+  directory.
+
+### Findings
+
+None.
+
+### Additional notes
+
+- The accepted native-Windows open-file shutdown risk and the accepted
+  pending-scratch-file-only deletion behavior are not reopened here.
+- The lower-priority hardening notes already recorded in the temp-file review
+  are unchanged and do not block this timer/directory refactor.
