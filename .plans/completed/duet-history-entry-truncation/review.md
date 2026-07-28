@@ -64,3 +64,41 @@ to the pressure-test benchmark.
 - `make compile`: clean byte-compilation with no warnings.
 - `make benchmark`: all default production-sized scenarios complete
   successfully.
+
+## Next-round review: current HEAD `bdc39e3`
+
+Reviewed: `bdc39e31310e0a03e99c74251d4df569762a36ed` on
+`feat/recent-edit-history-V2`, including the buffer-local budget fix and its
+regression coverage.
+
+### Verdict
+
+**Merge-ready.** No new actionable findings. The prior P2 is resolved: the
+effective entry budget is now computed while the tracked buffer is current,
+before parsing output in the diff process buffer. The implementation otherwise
+continues to match the plan's whole-hunk truncation and snapshot-rotation
+semantics.
+
+### Verification performed
+
+- `make check`: 118/118 tests pass.
+- `make compile`: clean byte-compilation with no warnings.
+- `make benchmark`: all default production-sized scenarios complete
+  successfully.
+- `git diff --check`: clean.
+- Re-audited exact-budget hunk boundaries, header and trailing-newline
+  exclusion, no-hunk and first-hunk-over-budget handling, and the asynchronous
+  tracked-buffer-to-STDOUT transition.
+
+### Findings
+
+None.
+
+### Additional notes
+
+- The regression test independently covers buffer-local
+  `minuet-duet-history-max-entry-chars` and
+  `minuet-duet-history-max-prompt-chars` while larger defaults are visible in
+  the STDOUT buffer.
+- The previously accepted decision not to support undersized pressure-test
+  benchmark workloads is unchanged and is not reopened here.
