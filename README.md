@@ -591,31 +591,24 @@ edit.
 
 ## Edit History
 
-Duet predictions improve significantly when the model can see what you have
-been doing. Enable `minuet-duet-history-mode` in a buffer to track your recent
-edits and include them in duet prompts as unified diffs:
+To track your recent edits and incorporate them into duet prompts as
+unified diffs, enable `minuet-duet-history-mode` in a buffer. This
+feature is opt-in and must be activated per buffer.
+
+Since history tracking saves temporary snapshots to disk, use a named
+hook function to exclude buffers with sensitive names. The following
+example skips `.env` files (including variants like `.env.local
 
 ```elisp
-(add-hook 'prog-mode-hook #'minuet-duet-history-mode)
-```
+(defun my-minuet-duet-history-maybe-enable ()
+  "Enable Minuet duet history unless the buffer has a sensitive name like .env."
+  (unless (string-match-p
+           (rx ".env" (? "." (* nonl)) string-end)
+           (buffer-name))
+    (minuet-duet-history-mode 1)))
 
-Tracking is lightweight: nothing runs per keystroke. Each tracked buffer owns
-a one-shot idle timer that detects changes by its modification tick and
-schedules the buffer's next check. Changed buffers are snapshotted to temporary
-files with `write-region` (no Lisp allocation) and diffed asynchronously with
-an external diff program, producing one coalesced history entry per editing
-burst. `minuet-duet-predict` waits up to
-`minuet-duet-history-flush-timeout` seconds for pending edits to be recorded
-before building its prompt, so the burst you just typed is normally included;
-if the diff is somehow slower, the prediction proceeds with history one burst
-stale instead of blocking. When the mode is disabled, prompts are unchanged.
-While a buffer is narrowed, its recorded history is withheld from prompts:
-entries are diffed against the widened buffer, so sending them could expose
-text outside the visible region; they become available again after widening.
-Each tracked buffer keeps two snapshot files in `temporary-file-directory`
-(bounded by `minuet-duet-history-max-buffer-size`, deleted when tracking
-ends); as with auto-save files, this means buffer contents touch the disk, so
-leave the mode off in buffers whose content must not be written anywhere.
+(add-hook 'prog-mode-hook #'my-minuet-duet-history-maybe-enable)
+```
 
 Relevant options:
 
@@ -639,34 +632,6 @@ Relevant options:
   refuses to enable when the program is not found.
 - `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
   in-flight diff before proceeding with slightly stale history (default 0.2).
-
-Use `minuet-duet-history-clear` to discard the recorded history of the current
-buffer.
-
-### Edit History Benchmarks
-
-Run the end-to-end performance and memory suite with:
-
-```sh
-make benchmark
-```
-
-It measures the initial snapshot of a large buffer, a 200-line block
-replacement, a whole-buffer rewrite (both produce a single hunk over the
-entry budget, measuring a diff whose output is discarded), a scattered
-100-hunk edit whose entry is recorded after truncation to the leading
-hunks, frequent edits coalesced into one flush, and the worst case where
-every edit is flushed. Tracked workloads are paired with edit-only baselines, and
-every measured flush waits for the external diff to complete. Results include
-wall time, throughput, garbage collection time, estimated Lisp allocation per
-run, and retained live Lisp heap after collection; since snapshots live on
-disk rather than in the Lisp heap, wall time and retained heap are the
-headline numbers.
-
-The workload is configurable through `MINUET_BENCH_LINES`,
-`MINUET_BENCH_REPETITIONS`, and `MINUET_BENCH_BURST_EDITS`. For meaningful
-comparisons, use the same Emacs build and settings and collect multiple runs on
-an otherwise idle machine.
 
 ## TODO
 
