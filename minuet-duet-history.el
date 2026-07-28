@@ -225,7 +225,7 @@ is allocated.  Content is always encoded as utf-8 with Unix newlines
 regardless of the buffer's file coding system, so both snapshot files
 are encoded consistently and the diff output decodes back to the
 buffer's text."
-  (let ((tick (buffer-chars-modified-tick)))
+  (prog1 (buffer-chars-modified-tick)
     (save-restriction
       (widen)
       (let ((coding-system-for-write 'utf-8-unix)
@@ -233,8 +233,7 @@ buffer's text."
             (write-region-annotate-functions nil)
             (write-region-post-annotation-function nil)
             (buffer-file-format nil))
-        (write-region (point-min) (point-max) file nil 0)))
-    tick))
+        (write-region (point-min) (point-max) file nil 0)))))
 
 (defun minuet-duet-history--ensure-directory ()
   "Return the snapshot directory, creating it when missing.
@@ -299,9 +298,9 @@ untested because no Windows machine is available."
 The buffer-local process variable is cleared before the process is
 deleted, so the late-arriving sentinel recognizes the cancellation and
 only disposes of its output buffers."
-  (let ((process minuet-duet-history--process))
+  (when-let* ((process minuet-duet-history--process))
     (setq minuet-duet-history--process nil)
-    (when (and process (process-live-p process))
+    (when (process-live-p process)
       (delete-process process))))
 
 ;;;;;
@@ -336,52 +335,56 @@ against the snapshot tick rather than via `after-change-functions', so
 edits made with modification hooks inhibited (e.g. by
 `with-silent-modifications') or from an indirect sibling buffer are
 recorded too."
-  (let ((tick (buffer-chars-modified-tick)))
-    (when (and minuet-duet-history-mode
-               (not minuet-duet-history--process)
-               (not (eql tick minuet-duet-history--snapshot-tick)))
-      (cond
-       ((> (buffer-size) minuet-duet-history-max-buffer-size)
-        (minuet-duet-history--disable-oversized-buffer))
-       ((not (minuet-duet-history--snapshot-state-valid-p))
-        (minuet-duet-history--take-snapshot))
-       (t
-        (let ((pending-tick (minuet-duet-history--write-snapshot
-                             minuet-duet-history--pending-file))
-              (stdout (generate-new-buffer " *minuet-duet-history-diff*" t))
-              (stderr (generate-new-buffer " *minuet-duet-history-diff-stderr*" t)))
-          (condition-case err
-              (let* ((default-directory temporary-file-directory)
-                     (process-connection-type nil)
-                     (process
-                      (make-process
-                       :name "minuet-duet-history-diff"
-                       :command (list minuet-duet-history-diff-program
-                                      (format "-U%d"
-                                              (max 0 minuet-duet-history-diff-context-lines))
-                                      minuet-duet-history--snapshot-file
-                                      minuet-duet-history--pending-file)
-                       :buffer stdout
-                       :stderr stderr
-                       :coding 'utf-8-unix
-                       :noquery t
-                       :sentinel #'minuet-duet-history--sentinel)))
-                ;; The stderr pipe's default sentinel would insert
-                ;; "Process ... finished" into the stderr buffer.
-                (set-process-sentinel (get-buffer-process stderr) #'ignore)
-                (process-put process :minuet-buffer (current-buffer))
-                (process-put process :minuet-pending-tick pending-tick)
-                (process-put process :minuet-stderr stderr)
-                (setq minuet-duet-history--process process))
-            (error
-             (kill-buffer stdout)
-             (kill-buffer stderr)
-             (signal (car err) (cdr err))))))))))
+  (when (and minuet-duet-history-mode
+             (not minuet-duet-history--process)
+             (not (eql (buffer-chars-modified-tick)
+                       minuet-duet-history--snapshot-tick)))
+    (cond
+     ((> (buffer-size) minuet-duet-history-max-buffer-size)
+      (minuet-duet-history--disable-oversized-buffer))
+     ((not (minuet-duet-history--snapshot-state-valid-p))
+      (minuet-duet-history--take-snapshot))
+     (t
+      (minuet-duet-history--start-diff)))))
+
+(defun minuet-duet-history--start-diff ()
+  "Write the pending snapshot and start the asynchronous diff against it.
+The new process becomes the buffer's in-flight diff; its output
+buffers are killed here if starting the process signals."
+  (let ((pending-tick (minuet-duet-history--write-snapshot
+                       minuet-duet-history--pending-file))
+        (stdout (generate-new-buffer " *minuet-duet-history-diff*" t))
+        (stderr (generate-new-buffer " *minuet-duet-history-diff-stderr*" t)))
+    (condition-case err
+        (let* ((default-directory temporary-file-directory)
+               (process-connection-type nil)
+               (process
+                (make-process
+                 :name "minuet-duet-history-diff"
+                 :command (list minuet-duet-history-diff-program
+                                (format "-U%d"
+                                        (max 0 minuet-duet-history-diff-context-lines))
+                                minuet-duet-history--snapshot-file
+                                minuet-duet-history--pending-file)
+                 :buffer stdout
+                 :stderr stderr
+                 :coding 'utf-8-unix
+                 :noquery t
+                 :sentinel #'minuet-duet-history--sentinel)))
+          ;; The stderr pipe's default sentinel would insert
+          ;; "Process ... finished" into the stderr buffer.
+          (set-process-sentinel (get-buffer-process stderr) #'ignore)
+          (process-put process :minuet-buffer (current-buffer))
+          (process-put process :minuet-pending-tick pending-tick)
+          (process-put process :minuet-stderr stderr)
+          (setq minuet-duet-history--process process))
+      (error
+       (kill-buffer stdout)
+       (kill-buffer stderr)
+       (signal (car err) (cdr err))))))
 
 (defun minuet-duet-history--sentinel (process _event)
   "Record the output of diff PROCESS as a history entry.
-Rotates the snapshot files on success; on failure the snapshot and
-tick are left unchanged so the next flush retries the same burst.
 When the tracked buffer died or the flush was cancelled (the buffer's
 process variable no longer holds PROCESS), only the process output
 buffers are disposed of; the snapshot files are owned by the buffer
@@ -395,40 +398,55 @@ lifecycle, never by the sentinel."
                    (eq process (buffer-local-value 'minuet-duet-history--process
                                                    buffer)))
           (with-current-buffer buffer
-            (setq minuet-duet-history--process nil)
-            (let ((status (process-status process))
-                  (code (process-exit-status process))
-                  (pending-tick (process-get process :minuet-pending-tick)))
-              (cond
-               ((or (eq status 'signal) (>= code 2))
-                (minuet--log
-                 (format "Minuet duet history: %s failed in %s (%s): %s"
-                         minuet-duet-history-diff-program (buffer-name)
-                         (if (eq status 'signal) "signal" code)
-                         (string-trim
-                          (with-current-buffer stderr (buffer-string))))))
-               ((= code 0)
-                ;; The burst was reverted: text is back to the snapshot.
-                (minuet-duet-history--rotate pending-tick))
-               (t
-                (let ((span (with-current-buffer stdout
-                              (minuet-duet-history--hunk-span))))
-                  (cond
-                   ((null span)
-                    (minuet--log
-                     (format "Minuet duet history: no hunks in diff output for %s; skipped."
-                             (buffer-name))))
-                   ((> span minuet-duet-history-max-region-lines)
-                    (minuet--log
-                     (format "Minuet duet history: edit in %s exceeds `minuet-duet-history-max-region-lines'; skipped."
-                             (buffer-name))))
-                   (t
-                    (minuet-duet-history--push-entry
-                     (with-current-buffer stdout
-                       (minuet-duet-history--entry-string)))))
-                  (minuet-duet-history--rotate pending-tick)))))))
+            (minuet-duet-history--record-result process stdout stderr)))
       (when (buffer-live-p stdout) (kill-buffer stdout))
       (when (buffer-live-p stderr) (kill-buffer stderr)))))
+
+(defun minuet-duet-history--record-result (process stdout stderr)
+  "Record the result of finished diff PROCESS in the current buffer.
+STDOUT and STDERR are the process output buffers.  Rotates the
+snapshot files on success; on failure the snapshot and tick are left
+unchanged so the next flush retries the same burst.  Called by the
+sentinel with the tracked buffer current."
+  (setq minuet-duet-history--process nil)
+  (let ((status (process-status process))
+        (code (process-exit-status process))
+        (pending-tick (process-get process :minuet-pending-tick)))
+    (cond
+     ((or (eq status 'signal) (>= code 2))
+      (minuet--log
+       (format "Minuet duet history: %s failed in %s (%s): %s"
+               minuet-duet-history-diff-program (buffer-name)
+               (if (eq status 'signal) "signal" code)
+               (string-trim
+                (with-current-buffer stderr (buffer-string))))))
+     ((= code 0)
+      ;; The burst was reverted: text is back to the snapshot.
+      (minuet-duet-history--rotate pending-tick))
+     (t
+      (minuet-duet-history--record-entry stdout)
+      (minuet-duet-history--rotate pending-tick)))))
+
+(defun minuet-duet-history--record-entry (stdout)
+  "Push the unified diff in buffer STDOUT as a history entry.
+The edit is skipped (with a log message) when the diff has no hunk
+headers or its changed region exceeds
+`minuet-duet-history-max-region-lines'."
+  (let ((span (with-current-buffer stdout
+                (minuet-duet-history--hunk-span))))
+    (cond
+     ((null span)
+      (minuet--log
+       (format "Minuet duet history: no hunks in diff output for %s; skipped."
+               (buffer-name))))
+     ((> span minuet-duet-history-max-region-lines)
+      (minuet--log
+       (format "Minuet duet history: edit in %s exceeds `minuet-duet-history-max-region-lines'; skipped."
+               (buffer-name))))
+     (t
+      (minuet-duet-history--push-entry
+       (with-current-buffer stdout
+         (minuet-duet-history--entry-string)))))))
 
 (defun minuet-duet-history--flush-buffer-safely ()
   "Start a flush of the current buffer, logging errors instead of signaling.
