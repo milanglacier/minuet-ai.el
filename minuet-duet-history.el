@@ -614,7 +614,7 @@ intent from what they have been doing."
 ;; Public API
 ;;;;;
 
-(defun minuet-duet-history-flush ()
+(cl-defun minuet-duet-history-flush ()
   "Flush pending edits into the history, waiting briefly for the diff.
 Starts a flush when edits are pending and none is in flight, then
 waits for in-flight diffs up to `minuet-duet-history-flush-timeout'
@@ -626,33 +626,32 @@ one burst stale.  No-op when `minuet-duet-history-mode' is disabled.
 Never signals: flush errors are logged, so callers such as
 `minuet-duet--build-context' degrade to running without history
 instead of aborting."
-  (when minuet-duet-history-mode
-    (condition-case err
-        (let ((deadline (+ (float-time) minuet-duet-history-flush-timeout))
-              (starts 0))
-          (catch 'done
-            (while t
-              (when (and (< starts 2)
-                         (not minuet-duet-history--process)
-                         (not (eql (buffer-chars-modified-tick)
-                                   minuet-duet-history--snapshot-tick)))
-                (cl-incf starts)
-                (minuet-duet-history--flush-buffer-safely))
-              (unless (and minuet-duet-history-mode
-                           minuet-duet-history--process
-                           (< (float-time) deadline))
-                (throw 'done nil))
-              ;; Wait on any process, not specifically on the diff:
-              ;; waiting on a process whose output was already drained
-              ;; can miss its exit notification and leave the sentinel
-              ;; unrun for the whole timeout.  The slice is short
-              ;; because the exit notification does not interrupt the
-              ;; wait either; each flush pays up to one slice.
-              (accept-process-output nil 0.005))))
-      (error
-       (minuet--log
-        (format "Minuet duet history: flush error in %s: %s"
-                (buffer-name) (error-message-string err)))))))
+  (unless minuet-duet-history-mode
+    (cl-return-from minuet-duet-history-flush))
+  (condition-case err
+      (cl-loop
+       with deadline = (+ (float-time) minuet-duet-history-flush-timeout)
+       with starts = 0
+       do (when (and (< starts 2)
+                     (not minuet-duet-history--process)
+                     (not (eql (buffer-chars-modified-tick)
+                               minuet-duet-history--snapshot-tick)))
+            (cl-incf starts)
+            (minuet-duet-history--flush-buffer-safely))
+       while (and minuet-duet-history-mode
+                  minuet-duet-history--process
+                  (< (float-time) deadline))
+       ;; Wait on any process, not specifically on the diff:
+       ;; waiting on a process whose output was already drained
+       ;; can miss its exit notification and leave the sentinel
+       ;; unrun for the whole timeout.  The slice is short
+       ;; because the exit notification does not interrupt the
+       ;; wait either; each flush pays up to one slice.
+       do (accept-process-output nil 0.005))
+    (error
+     (minuet--log
+      (format "Minuet duet history: flush error in %s: %s"
+              (buffer-name) (error-message-string err))))))
 
 (defun minuet-duet-history-clear ()
   "Discard the recorded edit history of the current buffer."
@@ -664,7 +663,7 @@ instead of aborting."
       (setq minuet-duet-history--entries nil)
       (minuet-duet-history--take-snapshot))))
 
-(defun minuet-duet-history-prompt-text ()
+(cl-defun minuet-duet-history-prompt-text ()
   "Return the edit history of the current buffer formatted for prompts.
 Returns nil when `minuet-duet-history-mode' is disabled, when no edits
 have been recorded, or while the buffer is narrowed: entries are
@@ -678,26 +677,28 @@ separators) are added while the total stays within
 `minuet-duet-history-max-prompt-chars'.  The fixed <edit_history>
 wrapper is not counted against the budget.  Entries are rendered
 oldest first."
-  (when (and minuet-duet-history-mode
-             minuet-duet-history--entries
-             (not (buffer-narrowed-p)))
-    (let ((selected nil)
-          (total 0))
-      (cl-loop for entry in minuet-duet-history--entries
-               for newest = t then nil
-               ;; Entries after the first cost their separator too.
-               for cost = (length entry) then (+ (length entry) 2)
-               if (or newest
-                      (<= (+ total cost)
-                          minuet-duet-history-max-prompt-chars))
-               do (progn (push entry selected)
-                         (cl-incf total cost))
-               else return nil)
-      (concat
-       "<edit_history>\n"
-       "Recent edits made by the user, oldest first, as unified diffs (line numbers refer to the buffer at the time of each edit):\n\n"
-       (mapconcat #'identity selected "\n\n")
-       "\n</edit_history>"))))
+  (unless (and minuet-duet-history-mode
+               minuet-duet-history--entries
+               (not (buffer-narrowed-p)))
+    (cl-return-from minuet-duet-history-prompt-text))
+  (let ((selected
+         ;; Entries are stored newest first; render oldest first.
+         (nreverse
+          (cl-loop with total = 0
+                   for entry in minuet-duet-history--entries
+                   for newest = t then nil
+                   ;; Entries after the first cost their separator too.
+                   for cost = (length entry) then (+ (length entry) 2)
+                   while (or newest
+                             (<= (+ total cost)
+                                 minuet-duet-history-max-prompt-chars))
+                   do (cl-incf total cost)
+                   collect entry))))
+    (concat
+     "<edit_history>\n"
+     "Recent edits made by the user, oldest first, as unified diffs (line numbers refer to the buffer at the time of each edit):\n\n"
+     (mapconcat #'identity selected "\n\n")
+     "\n</edit_history>")))
 
 (provide 'minuet-duet-history)
 ;;; minuet-duet-history.el ends here
