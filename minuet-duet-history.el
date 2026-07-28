@@ -129,7 +129,7 @@ one burst stale rather than blocking."
 
 (defvar minuet-duet-history--directory nil
   "Directory holding all snapshot files, or nil before the first use.
-Created lazily under `temporary-file-directory' and deleted
+Created lazily under function `temporary-file-directory' and deleted
 recursively at `kill-emacs'.  Snapshot files are normally deleted by
 their owner's lifecycle hooks; the directory sweep backstops buffers
 killed with their hooks inhibited (e.g. temp buffers created with
@@ -233,10 +233,10 @@ buffer's text."
 
 (defun minuet-duet-history--ensure-directory ()
   "Return the snapshot directory, creating it when missing.
-`make-temp-file' creates it in the local `temporary-file-directory'
-even for remote buffers.  The directory is re-created if it was
-deleted externally mid-session; the `kill-emacs' sweep is installed
-when it is first created."
+`make-temp-file' creates it in the local function
+`temporary-file-directory' even for remote buffers.  The directory is
+re-created if it was deleted externally mid-session; the `kill-emacs'
+sweep is installed when it is first created."
   (unless (and minuet-duet-history--directory
                (file-directory-p minuet-duet-history--directory))
     (setq minuet-duet-history--directory
@@ -664,7 +664,7 @@ instead of aborting."
       (minuet-duet-history--take-snapshot))))
 
 (cl-defun minuet-duet-history-prompt-text ()
-  "Return the edit history of the current buffer formatted for prompts.
+  "Return the edit history of the current buffer formatted for prompt.
 Returns nil when `minuet-duet-history-mode' is disabled, when no edits
 have been recorded, or while the buffer is narrowed: entries are
 diffed against the widened buffer, so rendering them under narrowing
