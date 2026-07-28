@@ -70,17 +70,12 @@ treat flushing as synchronous."
 ;; Diff output post-processing
 ;;;;;
 
-(defun minuet-duet-history-test--entry-string (output)
-  "Run `minuet-duet-history--entry-string' on OUTPUT in a temp buffer."
+(defun minuet-duet-history-test--entry-string (output &optional budget)
+  "Run `minuet-duet-history--entry-string' on OUTPUT in a temp buffer.
+BUDGET defaults to a bound larger than any test diff."
   (with-temp-buffer
     (insert output)
-    (minuet-duet-history--entry-string)))
-
-(defun minuet-duet-history-test--hunk-span (output)
-  "Run `minuet-duet-history--hunk-span' on OUTPUT in a temp buffer."
-  (with-temp-buffer
-    (insert output)
-    (minuet-duet-history--hunk-span)))
+    (minuet-duet-history--entry-string (or budget 10000))))
 
 (ert-deftest minuet-duet-history-entry-string ()
   "The ---/+++ header lines and trailing newline are dropped."
@@ -91,29 +86,38 @@ treat flushing as synchronous."
   (should (equal (minuet-duet-history-test--entry-string "@@ -1 +1 @@\n-a\n+b")
                  "@@ -1 +1 @@\n-a\n+b")))
 
-(ert-deftest minuet-duet-history-hunk-span-single ()
-  "A single hunk spans its own line count; omitted counts mean 1."
-  (should (= (minuet-duet-history-test--hunk-span "@@ -2 +2 @@\n-b\n+x") 1))
-  (should (= (minuet-duet-history-test--hunk-span
-              "@@ -1,3 +1,4 @@\n a\n+x\n b\n c")
-             4)))
-
-(ert-deftest minuet-duet-history-hunk-span-multi-hunk ()
-  "The span covers first hunk start through last hunk end, per side."
-  ;; Old side: 1 .. (10+4) => 13; new side: 1 .. (10+6) => 15.
-  (should (= (minuet-duet-history-test--hunk-span
-              "@@ -1,3 +1,3 @@\n a\n-b\n+B\n@@ -10,4 +10,6 @@\n x\n+y\n+z\n w")
-             15)))
-
-(ert-deftest minuet-duet-history-hunk-span-zero-count ()
-  "Zero-count sides (pure insertions/deletions) are handled."
-  (should (= (minuet-duet-history-test--hunk-span "@@ -2,0 +3,2 @@\n+x\n+y") 2)))
-
-(ert-deftest minuet-duet-history-hunk-span-no-hunks ()
+(ert-deftest minuet-duet-history-entry-string-no-hunks ()
   "Output without @@ headers (e.g. binary files) yields nil."
-  (should-not (minuet-duet-history-test--hunk-span
+  (should-not (minuet-duet-history-test--entry-string
                "Binary files a and b differ\n"))
-  (should-not (minuet-duet-history-test--hunk-span "")))
+  (should-not (minuet-duet-history-test--entry-string "")))
+
+(ert-deftest minuet-duet-history-entry-string-truncates-to-hunks ()
+  "An over-budget diff keeps the leading whole hunks that fit."
+  (let ((diff (concat "@@ -1 +1 @@\n-a\n+b\n"
+                      "@@ -5 +5 @@\n-c\n+d\n"
+                      "@@ -9 +9 @@\n-e\n+f\n")))
+    ;; The whole entry (trailing newline dropped) is 53 chars; the leading
+    ;; one and two hunks measure 17 and 35 chars.
+    (should (equal (minuet-duet-history-test--entry-string diff 53)
+                   "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n@@ -9 +9 @@\n-e\n+f"))
+    (should (equal (minuet-duet-history-test--entry-string diff 40)
+                   "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d"))
+    (should (equal (minuet-duet-history-test--entry-string diff 20)
+                   "@@ -1 +1 @@\n-a\n+b"))))
+
+(ert-deftest minuet-duet-history-entry-string-first-hunk-over-budget ()
+  "The entry is dropped when not even the first hunk fits."
+  (should-not (minuet-duet-history-test--entry-string
+               "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n" 10)))
+
+(ert-deftest minuet-duet-history-entry-string-truncation-ignores-headers ()
+  "The budget applies to the entry after the file headers are stripped."
+  (should (equal (minuet-duet-history-test--entry-string
+                  (concat "--- /tmp/a\t2026-01-01\n+++ /tmp/b\t2026-01-01\n"
+                          "@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n")
+                  20)
+                 "@@ -1 +1 @@\n-a\n+b")))
 
 ;;;;;
 ;; Entry bounding
@@ -197,26 +201,42 @@ treat flushing as synchronous."
     (minuet-duet-history-test--flush)
     (should-not minuet-duet-history--entries)))
 
-(ert-deftest minuet-duet-history-flush-skips-oversized-region ()
-  "Edits larger than the region cap are skipped but re-snapshot.
-The measured span includes the hunks' context lines, so the cap must
-leave room for `minuet-duet-history-diff-context-lines' around a small
-edit."
+(ert-deftest minuet-duet-history-flush-truncates-oversized-entry ()
+  "An over-budget multi-hunk burst records only its leading hunks."
+  (minuet-duet-history-test--with-buffer
+    (dotimes (i 20)
+      (insert (format "line-%02d\n" i)))
+    (minuet-duet-history-mode 1)
+    ;; Edit two spots far enough apart for separate hunks; a budget that
+    ;; only fits the first hunk drops the second.
+    (goto-char (point-min))
+    (insert "first\n")
+    (goto-char (point-max))
+    (insert "second\n")
+    (let ((minuet-duet-history-max-entry-chars 60))
+      (minuet-duet-history-test--flush))
+    (should (= (length minuet-duet-history--entries) 1))
+    (let ((entry (car minuet-duet-history--entries)))
+      (should (string-match-p "\\+first" entry))
+      (should-not (string-match-p "\\+second" entry)))))
+
+(ert-deftest minuet-duet-history-flush-skips-oversized-hunk ()
+  "A burst whose first hunk exceeds the budget is skipped but re-snapshots."
   (minuet-duet-history-test--with-buffer
     (insert "a\nb\n")
     (minuet-duet-history-mode 1)
-    (let ((minuet-duet-history-max-region-lines 4))
+    (let ((minuet-duet-history-max-entry-chars 20))
       (goto-char (point-max))
-      (insert "1\n2\n3\n4\n5\n")
+      (insert "1234567890\n1234567890\n1234567890\n")
       (minuet-duet-history-test--flush)
-      (should-not minuet-duet-history--entries)
-      ;; Snapshot was updated: a subsequent small edit diffs against the
-      ;; post-paste content.
-      (goto-char (point-min))
-      (insert "z\n")
-      (minuet-duet-history-test--flush)
-      (should (= (length minuet-duet-history--entries) 1))
-      (should (string-match-p "\\+z" (car minuet-duet-history--entries))))))
+      (should-not minuet-duet-history--entries))
+    ;; Snapshot was updated: a subsequent small edit diffs against the
+    ;; post-paste content.
+    (goto-char (point-min))
+    (insert "z\n")
+    (minuet-duet-history-test--flush)
+    (should (= (length minuet-duet-history--entries) 1))
+    (should (string-match-p "\\+z" (car minuet-duet-history--entries)))))
 
 (ert-deftest minuet-duet-history-flush-disables-on-oversized-buffer ()
   "Tracking auto-disables when the buffer grows past the size cap."

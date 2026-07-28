@@ -17,8 +17,11 @@
 ;; being cut short by the interactive deadline.  Wall time and retained
 ;; KiB are the headline numbers; alloc MiB now mostly measures the diff
 ;; output strings and process plumbing, since snapshots no longer live
-;; in the Lisp heap.  The whole-rewrite/skip workload measures a full
-;; external diff whose output is discarded post-hoc, not an early bail.
+;; in the Lisp heap.  The tracked block workloads produce one hunk far
+;; over `minuet-duet-history-max-entry-chars', so they measure a full
+;; external diff whose output is discarded post-hoc, not an early bail;
+;; the scattered workload produces a many-hunk diff over the budget, so
+;; it measures an entry accepted after truncation to the leading hunks.
 
 ;;; Code:
 
@@ -97,6 +100,41 @@ Start line numbering at FIRST-LINE, or zero."
         (minuet-duet-history-flush)))
     (aset state 2 new)
     (aset state 3 old)))
+
+(defun minuet-duet-history-benchmark--scattered (track hunks stride)
+  "Create state for editing HUNKS lines STRIDE lines apart with TRACK.
+Each edited line is far enough from its neighbors that the diff
+records one hunk per line, so the flushed entry is accepted but
+truncated to the leading hunks that fit
+`minuet-duet-history-max-entry-chars'."
+  (let ((buffer (minuet-duet-history-benchmark--buffer track))
+        (first-line (/ (- minuet-duet-history-benchmark-lines
+                          (* hunks stride))
+                       2))
+        markers)
+    (with-current-buffer buffer
+      (dotimes (i hunks)
+        (push (copy-marker
+               (minuet-duet-history-benchmark--line-position
+                (+ first-line (* i stride))))
+              markers)))
+    (vector buffer (nreverse markers) 1 track)))
+
+(defun minuet-duet-history-benchmark--edit-scattered (state)
+  "Rewrite the value field of each marked line in STATE; flush when tracking.
+The value field starts 18 characters into each line of
+`minuet-duet-history-benchmark--line-format' and is 8 digits wide."
+  (let ((buffer (aref state 0))
+        (markers (aref state 1))
+        (text (format "%08d" (aref state 2))))
+    (with-current-buffer buffer
+      (dolist (marker markers)
+        (delete-region (+ marker 18) (+ marker 26))
+        (goto-char (+ marker 18))
+        (insert text))
+      (when (aref state 3)
+        (minuet-duet-history-flush)))
+    (aset state 2 (1+ (aref state 2)))))
 
 (defun minuet-duet-history-benchmark--frequent (track flush-each)
   "Create frequent-edit state using TRACK and FLUSH-EACH."
@@ -205,7 +243,7 @@ MINUET_BENCH_BURST_EDITS to change the default workload."
   (let* ((minuet-duet-history-flush-timeout 30)
          (runs minuet-duet-history-benchmark-repetitions)
          (full-runs (min 3 runs))
-         (region-lines minuet-duet-history-max-region-lines)
+         (block-lines 200)
          (cases
           (list
            (list "enable history (large buffer)" 1
@@ -213,11 +251,11 @@ MINUET_BENCH_BURST_EDITS to change the default workload."
                  #'minuet-duet-history-benchmark--enable)
            (list "large diff: edit only" runs
                  (lambda ()
-                   (minuet-duet-history-benchmark--block nil region-lines))
+                   (minuet-duet-history-benchmark--block nil block-lines))
                  #'minuet-duet-history-benchmark--replace-block)
            (list "large diff: tracked" runs
                  (lambda ()
-                   (minuet-duet-history-benchmark--block t region-lines))
+                   (minuet-duet-history-benchmark--block t block-lines))
                  #'minuet-duet-history-benchmark--replace-block)
            (list "whole rewrite: edit only" full-runs
                  (lambda ()
@@ -229,6 +267,14 @@ MINUET_BENCH_BURST_EDITS to change the default workload."
                    (minuet-duet-history-benchmark--block
                     t minuet-duet-history-benchmark-lines))
                  #'minuet-duet-history-benchmark--replace-block)
+           (list "scattered diff: edit only" runs
+                 (lambda ()
+                   (minuet-duet-history-benchmark--scattered nil 100 10))
+                 #'minuet-duet-history-benchmark--edit-scattered)
+           (list "scattered diff: truncated entry" runs
+                 (lambda ()
+                   (minuet-duet-history-benchmark--scattered t 100 10))
+                 #'minuet-duet-history-benchmark--edit-scattered)
            (list "frequent edits: edit only" runs
                  (lambda ()
                    (minuet-duet-history-benchmark--frequent nil nil))

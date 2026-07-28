@@ -623,9 +623,10 @@ Relevant options:
   recorded (default 1.5).
 - `minuet-duet-history-max-entries`: history entries kept per buffer
   (default 8).
-- `minuet-duet-history-max-region-lines`: edits whose changed region exceeds
-  this many lines (large pastes, reverts, whole-buffer reformats) are not
-  recorded (default 200).
+- `minuet-duet-history-max-entry-chars`: characters recorded per edit
+  (default 2000). A longer diff keeps only its leading whole hunks that fit;
+  when not even the first hunk fits (e.g. a large single-hunk paste), the
+  edit is not recorded.
 - `minuet-duet-history-diff-context-lines`: unchanged context lines shown
   around each hunk (default 2).
 - `minuet-duet-history-max-prompt-chars`: total characters of history included
@@ -650,10 +651,12 @@ Run the end-to-end performance and memory suite with:
 make benchmark
 ```
 
-It measures the initial snapshot of a large buffer, an accepted diff at the
-configured region limit, a whole-buffer rewrite whose diff is discarded by the
-limit, frequent edits coalesced into one flush, and the worst case where every
-edit is flushed. Tracked workloads are paired with edit-only baselines, and
+It measures the initial snapshot of a large buffer, a 200-line block
+replacement, a whole-buffer rewrite (both produce a single hunk over the
+entry budget, measuring a diff whose output is discarded), a scattered
+100-hunk edit whose entry is recorded after truncation to the leading
+hunks, frequent edits coalesced into one flush, and the worst case where
+every edit is flushed. Tracked workloads are paired with edit-only baselines, and
 every measured flush waits for the external diff to complete. Results include
 wall time, throughput, garbage collection time, estimated Lisp allocation per
 run, and retained live Lisp heap after collection; since snapshots live on

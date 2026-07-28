@@ -68,15 +68,17 @@ The oldest entries are dropped first."
   :type 'integer
   :group 'minuet-duet)
 
-(defcustom minuet-duet-history-max-region-lines 200
-  "Maximum changed-region size (in lines) recorded as a history entry.
+(defcustom minuet-duet-history-max-entry-chars 2000
+  "Maximum characters of a single edit recorded as a history entry.
 
-The changed region of a diff spans from its first hunk to its last
-hunk on either side, including the unchanged context lines around
-them.  If it exceeds this many lines, the edit is skipped (the
-snapshot is still updated).  This avoids recording mass edits such as
-large pastes, reverts, or whole-buffer reformatting, which are poor
-signals of user intent."
+A longer diff is truncated to the leading whole hunks that fit, so an
+oversized burst (a large paste or refactor, often the strongest
+intent signal) keeps its head instead of vanishing from history.
+Cutting mid-hunk would produce an invalid diff, so when not even the
+first hunk fits the edit is skipped entirely (the snapshot is still
+updated).  Entries are additionally bounded by
+`minuet-duet-history-max-prompt-chars', since the newest entry is
+always included in prompts."
   :type 'integer
   :group 'minuet-duet)
 
@@ -162,50 +164,44 @@ completes, so the two files ping-pong roles.")
 ;; Pure helpers
 ;;;;;
 
-(defun minuet-duet-history--entry-string ()
+(defun minuet-duet-history--entry-string (budget)
   "Return the unified diff in the current buffer as a history entry.
 The ---/+++ file header lines, which name the snapshot files and would
 leak temporary file paths into prompts, and the trailing newline are
-dropped."
+dropped.  A diff longer than BUDGET characters is truncated to the
+leading whole hunks that fit, so an oversized burst keeps its head
+instead of vanishing from history.  Returns nil when the buffer
+contains no hunks (e.g. for binary input) or not even the first hunk
+fits."
   (save-excursion
     (goto-char (point-min))
     (when (looking-at "--- [^\n]*\n\\+\\+\\+ [^\n]*\n")
       (goto-char (match-end 0)))
-    (buffer-substring-no-properties
-     (point)
-     (if (eq (char-before (point-max)) ?\n)
-         (max (point) (1- (point-max)))
-       (point-max)))))
+    (when-let* ((_ (looking-at "@@"))
+                (start (point))
+                (end (if (eq (char-before (point-max)) ?\n)
+                         (1- (point-max))
+                       (point-max)))
+                (kept-end (minuet-duet-history--leading-hunks-end
+                           start end budget)))
+      (buffer-substring-no-properties start kept-end))))
 
-(defun minuet-duet-history--hunk-span ()
-  "Return the changed-region span of the unified diff in the current buffer.
-The span is the larger side of the region from the start of the first
-hunk to the end of the last hunk, computed from the @@ headers (an
-omitted count means 1).  Returns nil when the buffer contains no hunk
-headers, e.g. for binary input.  Works on the diff process buffer
-directly so oversized diffs are measured and discarded without ever
-allocating their content as a Lisp string."
-  (save-excursion
-    (goto-char (point-min))
-    (let (first-a first-b last-a-end last-b-end)
-      (while (re-search-forward
-              "^@@ -\\([0-9]+\\)\\(?:,\\([0-9]+\\)\\)? \\+\\([0-9]+\\)\\(?:,\\([0-9]+\\)\\)? @@"
-              nil t)
-        (let ((a-start (string-to-number (match-string 1)))
-              (a-count (if (match-beginning 2)
-                           (string-to-number (match-string 2))
-                         1))
-              (b-start (string-to-number (match-string 3)))
-              (b-count (if (match-beginning 4)
-                           (string-to-number (match-string 4))
-                         1)))
-          (unless first-a
-            (setq first-a a-start
-                  first-b b-start))
-          (setq last-a-end (+ a-start a-count)
-                last-b-end (+ b-start b-count))))
-      (when first-a
-        (max (- last-a-end first-a) (- last-b-end first-b))))))
+(defun minuet-duet-history--leading-hunks-end (start end budget)
+  "Return the end of the leading whole hunks between START and END.
+The result is END when the whole diff fits within BUDGET characters,
+otherwise the last hunk boundary within BUDGET, or nil when even the
+first hunk exceeds it.  Works on the diff process buffer directly so
+oversized diffs are truncated without ever allocating their content
+as a Lisp string."
+  (if (<= (- end start) budget)
+      end
+    (save-excursion
+      (goto-char start)
+      (let (kept-end)
+        (while (and (re-search-forward "\n@@" end t)
+                    (<= (- (match-beginning 0) start) budget))
+          (setq kept-end (match-beginning 0)))
+        kept-end))))
 
 (defun minuet-duet-history--push-entry (entry)
   "Push ENTRY onto the buffer's history, dropping the oldest past the cap."
@@ -429,24 +425,19 @@ sentinel with the tracked buffer current."
 
 (defun minuet-duet-history--record-entry (stdout)
   "Push the unified diff in buffer STDOUT as a history entry.
-The edit is skipped (with a log message) when the diff has no hunk
-headers or its changed region exceeds
-`minuet-duet-history-max-region-lines'."
-  (let ((span (with-current-buffer stdout
-                (minuet-duet-history--hunk-span))))
-    (cond
-     ((null span)
-      (minuet--log
-       (format "Minuet duet history: no hunks in diff output for %s; skipped."
-               (buffer-name))))
-     ((> span minuet-duet-history-max-region-lines)
-      (minuet--log
-       (format "Minuet duet history: edit in %s exceeds `minuet-duet-history-max-region-lines'; skipped."
-               (buffer-name))))
-     (t
-      (minuet-duet-history--push-entry
-       (with-current-buffer stdout
-         (minuet-duet-history--entry-string)))))))
+The diff is bounded to `minuet-duet-history-max-entry-chars', and to
+`minuet-duet-history-max-prompt-chars' since the newest entry is
+always included in prompts: a longer diff keeps only its leading
+whole hunks that fit.  The edit is skipped (with a log message) when
+the output has no hunks or not even the first hunk fits."
+  (if-let* ((entry (with-current-buffer stdout
+                     (minuet-duet-history--entry-string
+                      (min minuet-duet-history-max-entry-chars
+                           minuet-duet-history-max-prompt-chars)))))
+      (minuet-duet-history--push-entry entry)
+    (minuet--log
+     (format "Minuet duet history: no hunks within `minuet-duet-history-max-entry-chars' in diff output for %s; skipped."
+             (buffer-name)))))
 
 (defun minuet-duet-history--flush-buffer-safely ()
   "Start a flush of the current buffer, logging errors instead of signaling.
