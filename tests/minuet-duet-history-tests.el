@@ -973,23 +973,21 @@ this rare case)."
       (should (string-suffix-p "\n</edit_history>" text))
       (should (string-match-p "E-OLDEST\n\nE-MIDDLE\n\nE-NEWEST" text)))))
 
-(ert-deftest minuet-duet-history-prompt-text-nil-while-narrowed ()
-  "History is withheld from prompts while the buffer is narrowed.
-Entries are diffed against the widened buffer, so rendering them under
-narrowing could expose concealed text and would use line numbers
-inconsistent with the narrowed document.  Entries survive and become
-available again after widening."
+(ert-deftest minuet-duet-history-prompt-text-while-narrowed ()
+  "Narrowing the buffer does not change the rendered history.
+The same text is returned as when the buffer is widened, and the
+narrowing itself is left in place."
   (minuet-duet-history-test--with-buffer
     (dotimes (i 6) (insert (format "line-%d\n" i)))
     (minuet-duet-history-mode 1)
     (goto-char (point-max))
     (insert "x\n")
     (minuet-duet-history-test--flush)
-    (should (minuet-duet-history-prompt-text))
-    (narrow-to-region (point-min) 10)
-    (should-not (minuet-duet-history-prompt-text))
-    (widen)
-    (should (minuet-duet-history-prompt-text))))
+    (let ((widened-text (minuet-duet-history-prompt-text)))
+      (should widened-text)
+      (narrow-to-region (point-min) 10)
+      (should (equal (minuet-duet-history-prompt-text) widened-text))
+      (should (buffer-narrowed-p)))))
 
 (ert-deftest minuet-duet-history-prompt-text-budget ()
   "Older entries are dropped when over budget; the newest always stays."

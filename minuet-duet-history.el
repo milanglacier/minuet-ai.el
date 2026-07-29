@@ -665,12 +665,9 @@ instead of aborting."
 
 (cl-defun minuet-duet-history-prompt-text ()
   "Return the edit history of the current buffer formatted for prompt.
-Returns nil when `minuet-duet-history-mode' is disabled, when no edits
-have been recorded, or while the buffer is narrowed: entries are
-diffed against the widened buffer, so rendering them under narrowing
-could expose text outside the visible region and would use line
-numbers inconsistent with the narrowed document.  Entries are kept and
-become available again once the buffer is widened.
+Returns nil when `minuet-duet-history-mode' is disabled or when no
+edits have been recorded.  Entries are diffed against the widened
+buffer, so the result is unaffected by narrowing.
 
 The newest entry is always included; older entries (and their
 separators) are added while the total stays within
@@ -678,8 +675,7 @@ separators) are added while the total stays within
 wrapper is not counted against the budget.  Entries are rendered
 oldest first."
   (unless (and minuet-duet-history-mode
-               minuet-duet-history--entries
-               (not (buffer-narrowed-p)))
+               minuet-duet-history--entries)
     (cl-return-from minuet-duet-history-prompt-text))
   (let ((selected
          ;; Entries are stored newest first; render oldest first.
