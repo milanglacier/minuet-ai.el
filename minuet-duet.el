@@ -34,6 +34,7 @@
 (require 'minuet-diff)
 
 (require 'minuet)
+(require 'minuet-duet-history)
 
 ;;;;;
 ;; Customization
@@ -167,7 +168,8 @@ Set to 0 to disable suffix filtering."
 
 Input markers:
 - `{{{:editable_region_start}}}` and `{{{:editable_region_end}}}` wrap the editable region.
-- `{{{:cursor_position}}}` marks the current cursor position inside that editable region."))
+- `{{{:cursor_position}}}` marks the current cursor position inside that editable region.
+- An optional `<edit_history>` section may precede the document, listing the user's recent edits as unified diffs, oldest first. Use it to infer the user's intent and predict their next edit."))
 
 (defun minuet-duet--default-guidelines ()
   "Build the default duet guidelines."
@@ -179,7 +181,8 @@ Input markers:
 4. For any text or code inside the editable region that is not intended to change, copy it verbatim. Do not paraphrase, refactor, reformat, or otherwise alter unchanged content.
 5. Make only the smallest changes necessary to satisfy the requested edit.
 6. Do not return explanations, markdown fences, or any content outside the editable region block.
-7. Make the rewrite coherent with the surrounding non-editable text."))
+7. Make the rewrite coherent with the surrounding non-editable text.
+8. When an edit history is present, prefer edits that continue the pattern of the user's recent changes."))
 
 (defvar minuet-duet-default-system-template
   "{{{:prompt}}}\n{{{:guidelines}}}"
@@ -194,11 +197,16 @@ Input markers:
 (defun minuet-duet--default-chat-input-template ()
   "Build the default chat input template with rendered markers."
   (minuet-duet--render-markers
-   "{{{:non_editable_region_before}}}
+   "{{{:edit_history}}}{{{:non_editable_region_before}}}
 {{{:editable_region_start}}}
 {{{:editable_region_before_cursor}}}{{{:cursor_position}}}{{{:editable_region_after_cursor}}}
 {{{:editable_region_end}}}
 {{{:non_editable_region_after}}}"))
+
+(defun minuet-duet--chat-input-edit-history (context)
+  "Return the recent edit history section from CONTEXT, or nil."
+  (when-let* ((history (plist-get context :edit-history)))
+    (concat history "\n")))
 
 (defun minuet-duet--chat-input-non-editable-region-before (context)
   "Return the non-editable region before the editable region from CONTEXT."
@@ -218,6 +226,8 @@ Input markers:
 
 (defvar minuet-duet-default-chat-input
   '(:template minuet-duet--default-chat-input-template
+    :edit_history
+    minuet-duet--chat-input-edit-history
     :non_editable_region_before
     minuet-duet--chat-input-non-editable-region-before
     :editable_region_before_cursor
@@ -233,7 +243,22 @@ Input markers:
   (list
    (list :role "user"
          :content (minuet-duet--render-markers
-                   "type User = {
+                   "<edit_history>
+Recent edits made by the user, oldest first, as unified diffs (line numbers refer to the buffer at the time of each edit):
+
+@@ -2,3 +2,4 @@
+     id: string;
+     name: string;
++    role?: string;
+ };
+
+@@ -3,3 +3,4 @@
+     name: string;
+     role?: string;
++    active?: boolean;
+ };
+</edit_history>
+type User = {
     id: string;
     name: string;
     role?: string;
@@ -476,6 +501,8 @@ truncated side."
 
 (defun minuet-duet--build-context ()
   "Build duet context plist from the current buffer and point.
+Pending edit history is flushed first, so any entry point building a
+context includes the burst typed right before it.
 Returns a plist with:
   :chars-modified-tick
   :non-editable-region-before
@@ -485,6 +512,7 @@ Returns a plist with:
   :original-lines
   :region-start  (buffer position)
   :region-end    (buffer position)"
+  (minuet-duet-history-flush)
   (let* ((lines-before (max minuet-duet-editable-region-lines-before 0))
          (lines-after (max minuet-duet-editable-region-lines-after 0))
          ;; Current line number (1-based)
@@ -515,6 +543,7 @@ Returns a plist with:
          (editable-text (buffer-substring-no-properties region-start region-end))
          (original-lines (split-string editable-text "\n")))
     (list :chars-modified-tick (buffer-chars-modified-tick)
+          :edit-history (minuet-duet-history-prompt-text)
           :non-editable-region-before non-editable-before
           :editable-region-before-cursor editable-before-cursor
           :editable-region-after-cursor editable-after-cursor

@@ -26,6 +26,7 @@
   - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
 - [Duet (Next Edit Prediction)](#duet-next-edit-prediction)
   - [Context Options](#context-options)
+  - [Edit History](#edit-history)
   - [TODO](#todo)
 - [Provider Options](#provider-options)
   - [OpenAI](#openai)
@@ -588,9 +589,53 @@ non-editable context window is kept before the editable region when truncation
 is needed. The default is 0.75, keeping more surrounding context before the
 edit.
 
+## Edit History
+
+To track your recent edits and incorporate them into duet prompts as
+unified diffs, enable `minuet-duet-history-mode` in a buffer. This
+feature is opt-in and must be activated per buffer.
+
+Since history tracking saves temporary snapshots to disk, use a named
+hook function to exclude buffers with sensitive names. The following
+example skips `.env` files (including variants like `.env.local
+
+```elisp
+(defun my-minuet-duet-history-maybe-enable ()
+  "Enable Minuet duet history unless the buffer has a sensitive name like .env."
+  (unless (string-match-p
+           (rx ".env" (? "." (* nonl)) string-end)
+           (buffer-name))
+    (minuet-duet-history-mode 1)))
+
+(add-hook 'prog-mode-hook #'my-minuet-duet-history-maybe-enable)
+```
+
+Relevant options:
+
+- `minuet-duet-history-idle-delay`: idle seconds before pending edits are
+  recorded (default 1.5).
+- `minuet-duet-history-max-entries`: history entries kept per buffer
+  (default 8).
+- `minuet-duet-history-max-entry-chars`: characters recorded per edit
+  (default 2000). A longer diff keeps only its leading whole hunks that fit;
+  when not even the first hunk fits (e.g. a large single-hunk paste), the
+  edit is not recorded.
+- `minuet-duet-history-diff-context-lines`: unchanged context lines shown
+  around each hunk (default 2).
+- `minuet-duet-history-max-prompt-chars`: total characters of history included
+  in prompts; the newest entry is always included (default 6000).
+- `minuet-duet-history-max-buffer-size`: buffers larger than this are not
+  tracked (default 1000000).
+- `minuet-duet-history-diff-program`: the diff program to run (default
+  `diff`, expected on `PATH`; Windows users without one can point this at any
+  program that emits unified diffs with POSIX diff exit codes). The mode
+  refuses to enable when the program is not found.
+- `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
+  in-flight diff before proceeding with slightly stale history (default 0.2).
+
 ## TODO
 
-- [ ] Implement a proper diff mechanism to include recent edit changes in
+- [x] Implement a proper diff mechanism to include recent edit changes in
       prompts.
 - [ ] Add support for specialized NES models (Zeta, Sweep).
 - [ ] Implement automatically triggered duet prediction.

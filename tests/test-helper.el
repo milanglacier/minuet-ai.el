@@ -24,6 +24,17 @@
   (or (getenv "PACKAGE_USER_DIR")
       (expand-file-name "elpa" (minuet-test--emacs-dir))))
 
+(defun minuet-test--wait-until (predicate timeout message)
+  "Wait until PREDICATE returns non-nil or fail after TIMEOUT seconds.
+Use MESSAGE in the assertion failure.  Process output (and thus
+process sentinels) is accepted while waiting."
+  (let ((deadline (+ (float-time) timeout)))
+    (while (and (< (float-time) deadline)
+                (not (funcall predicate)))
+      (accept-process-output nil 0.05))
+    (unless (funcall predicate)
+      (ert-fail message))))
+
 (defun minuet-test--cleanup-temp-dir ()
   "Delete the temporary Emacs directory created for this test run."
   (when (and minuet-test--temp-emacs-dir
