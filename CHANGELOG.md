@@ -1,3 +1,10 @@
+# Version 0.9.0 (2026-07-31)
+
+## Features
+
+- **Recent Edit History for Duet**: Duet can now use recent edits to provide
+  more relevant next-edit predictions.
+
 # Version 0.8.0 (2026-05-18)
 
 ## Breaking Changes
