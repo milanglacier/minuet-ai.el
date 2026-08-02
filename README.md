@@ -678,7 +678,7 @@ Below is the default value:
 
 ```lisp
 (defvar minuet-openai-options
-    `(:model "gpt-5.4-nano"
+    `(:model "gpt-5.6-luna"
       :api-key "OPENAI_API_KEY"
       :system
       (:template minuet-default-system-template
@@ -702,18 +702,16 @@ request timeout from outputing too many tokens.
 
 ```lisp
 (minuet-set-optional-options minuet-openai-options :max_completion_tokens 128)
-;; For thinking models.
+;; Recommended for thinking models (e.g., gpt-5.6-luna).
 (minuet-set-optional-options minuet-openai-options :reasoning_effort "none")
-;; Use "minimal" if your chosen model does not support "none".
 ```
 
 Note: If you intend to use GPT-5 series models (e.g., `gpt-5-mini` or
-`gpt-5.4-nano`), keep the following points in mind:
+`gpt-5.6-luna`), keep the following points in mind:
 
 1. Use `max_completion_tokens` instead of `max_tokens`.
 2. These models do not support `top_p` or `temperature` adjustments.
-3. Disable thinking by setting `reasoning_effort` to `none`, or use `minimal` if
-   your chosen model does not support `none`.
+3. Disable thinking by setting `reasoning_effort` to `none`.
 
 </details>
 

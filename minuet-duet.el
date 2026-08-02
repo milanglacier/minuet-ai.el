@@ -313,7 +313,7 @@ export async function sendUser(user: User, overrides = {}) {
 ;;;;;
 
 (defvar minuet-duet-openai-options
-  `(:model "gpt-5.4-mini"
+  `(:model "gpt-5.6-luna"
     :api-key "OPENAI_API_KEY"
     :end-point "https://api.openai.com/v1/chat/completions"
     :system ,minuet-duet-default-system
