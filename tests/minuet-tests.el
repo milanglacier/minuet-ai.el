@@ -263,5 +263,50 @@
     (should (equal (plist-get (plist-get options :chat-input) :template)
                    "x {{{:before}}}"))))
 
+(defmacro minuet-test--with-displayed-suggestion (suggestion &rest body)
+  "Run BODY in a temporary buffer where SUGGESTION is the displayed suggestion."
+  (declare (indent 1))
+  `(with-temp-buffer
+     (setq minuet--current-suggestions (list ,suggestion)
+           minuet--current-suggestion-index 0
+           minuet--current-overlay (make-overlay (point) (point)))
+     ,@body))
+
+(ert-deftest minuet-accept-suggestion-word-accepts-first-word ()
+  "Accepting a word inserts the first word and keeps the rest displayed."
+  (minuet-test--with-displayed-suggestion "foo bar baz"
+    (minuet-accept-suggestion-word)
+    (should (equal (buffer-string) "foo"))
+    (should (equal minuet--current-suggestions '(" bar baz")))
+    (should minuet--current-overlay)))
+
+(ert-deftest minuet-accept-suggestion-word-accepts-n-words ()
+  "A numeric argument accepts that many words at once."
+  (minuet-test--with-displayed-suggestion "foo bar baz"
+    (minuet-accept-suggestion-word 2)
+    (should (equal (buffer-string) "foo bar"))
+    (should (equal minuet--current-suggestions '(" baz")))))
+
+(ert-deftest minuet-accept-suggestion-word-includes-leading-non-word-chars ()
+  "Leading whitespace and punctuation are accepted along with the first word."
+  (minuet-test--with-displayed-suggestion "  (foo) bar"
+    (minuet-accept-suggestion-word)
+    (should (equal (buffer-string) "  (foo"))
+    (should (equal minuet--current-suggestions '(") bar")))))
+
+(ert-deftest minuet-accept-suggestion-word-crosses-newlines ()
+  "Word acceptance continues onto the next line of the suggestion."
+  (minuet-test--with-displayed-suggestion "foo\nbar baz"
+    (minuet-accept-suggestion-word 2)
+    (should (equal (buffer-string) "foo\nbar"))
+    (should (equal minuet--current-suggestions '(" baz")))))
+
+(ert-deftest minuet-accept-suggestion-word-accepts-all-when-n-exceeds-words ()
+  "A count larger than the word total accepts the whole suggestion."
+  (minuet-test--with-displayed-suggestion "foo bar"
+    (minuet-accept-suggestion-word 5)
+    (should (equal (buffer-string) "foo bar"))
+    (should-not minuet--current-overlay)))
+
 (provide 'minuet-tests)
 ;;; minuet-tests.el ends here

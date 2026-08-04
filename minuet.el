@@ -965,6 +965,32 @@ many lines.  Without a prefix argument, accept only the first line."
         (minuet--display-suggestion (list remaining-suggestion) 0)))))
 
 ;;;###autoload
+(defun minuet-accept-suggestion-word (&optional n)
+  "Accept N words of the current suggestion.
+When called interactively with a numeric prefix argument, accept that
+many words.  Without a prefix argument, accept only the first word."
+  (interactive "p")
+  (when-let* ((suggestions minuet--current-suggestions)
+              (_ minuet--current-overlay)
+              (suggestion (nth minuet--current-suggestion-index suggestions))
+              (n (or n 1))
+              (syntax (syntax-table))
+              (accepted
+               (with-temp-buffer
+                 (set-syntax-table syntax)
+                 (insert suggestion)
+                 (goto-char (point-min))
+                 (forward-word n)
+                 (buffer-substring (point-min) (point))))
+              (remaining (substring suggestion (length accepted))))
+    (minuet--cleanup-suggestion)
+    (insert accepted)
+    (unless (string-empty-p remaining)
+      ;; See the NOTE in `minuet-accept-suggestion-line' about why this
+      ;; does not retrigger auto-suggestion.
+      (minuet--display-suggestion (list remaining) 0))))
+
+;;;###autoload
 (defun minuet-complete-with-minibuffer ()
   "Complete using minibuffer interface."
   (interactive)
