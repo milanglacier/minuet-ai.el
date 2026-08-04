@@ -488,6 +488,27 @@ symbol, return its value.  Else return itself."
         ((and (symbolp value) (boundp value)) (symbol-value value))
         (t value)))
 
+(defun minuet--expand-template (template lookup)
+  "Expand each {{{KEY}}} placeholder in TEMPLATE using LOOKUP.
+TEMPLATE must be a string; any other value raises an error.  LOOKUP
+is called with the interned KEY symbol \(e.g. `:prompt' for
+{{{:prompt}}}) and must return the replacement string, or nil to drop
+the placeholder; any other return value raises an error.  The
+template is walked once using literal string matching."
+  (let ((pos 0)
+        (parts nil))
+    (while-let ((open (string-search "{{{" template pos))
+                (close (string-search "}}}" template (+ open 3))))
+      (push (substring template pos open) parts)
+      (when-let* ((key (intern (substring template (+ open 3) close)))
+                  (value (funcall lookup key)))
+        (unless (stringp value)
+          (signal 'wrong-type-argument (list 'stringp value key)))
+        (push value parts))
+      (setq pos (+ close 3)))
+    (push (substring template pos) parts)
+    (apply #'concat (nreverse parts))))
+
 (defun minuet--cancel-requests ()
   "Cancel all current minuet requests for this buffer."
   (when minuet--current-requests
@@ -748,37 +769,15 @@ be specified as a plist of provider settings.  The return value will a
 list of strings.  It will then be converted into a multi-turn
 conversation with alternating `user` and `assistant` roles by
 `minuet--create-chat-messages-from-list'"
-  (let* ((chat-input (copy-tree (plist-get options :chat-input)))
+  (let* ((chat-input (plist-get options :chat-input))
          (templates (minuet--eval-value (plist-get chat-input :template)))
          (templates (if (stringp templates) (list templates) templates))
-         (parts nil)
-         (results nil))
-    ;; Remove template from options to avoid infinite recursion
-    (setq chat-input (plist-put chat-input :template nil))
-    ;; Use cl-loop for better control flow
-    (dolist (template templates)
-      (setq parts nil)
-      (cl-loop with last-pos = 0
-               for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
-               until (not match)
-               for start-pos = (match-beginning 0)
-               for end-pos = (match-end 0)
-               for key = (match-string 1 template)
-               do
-               ;; Add text before placeholder
-               (when (> start-pos last-pos)
-                 (push (substring template last-pos start-pos) parts))
-               ;; Get and add replacement value
-               (when-let* ((repl-fn (plist-get chat-input (intern key)))
-                           (value (funcall repl-fn context)))
-                 (push value parts))
-               (setq last-pos end-pos)
-               finally
-               ;; Add remaining text after last match
-               (push (substring template last-pos) parts))
-      ;; Join parts in reverse order
-      (push (apply #'concat (nreverse parts)) results))
-    (nreverse results)))
+         (lookup (lambda (key)
+                   (when-let* (((not (eq key :template)))
+                               (repl-fn (plist-get chat-input key)))
+                     (funcall repl-fn context)))))
+    (mapcar (lambda (template) (minuet--expand-template template lookup))
+            templates)))
 
 (cl-defun minuet--filter-text (item context)
   "Filter ITEM based on CONTEXT using `minuet-find-longest-match'.
@@ -1057,24 +1056,18 @@ If using ollama you can just set it to 'TERM'." api-key)
 
 (defun minuet--make-system-prompt (template &optional n-completions)
   "Create system prompt used in chat LLM from TEMPLATE and N-COMPLETIONS."
-  (let* ((tmpl (plist-get template :template))
-         (tmpl (minuet--eval-value tmpl))
+  (let* ((tmpl (minuet--eval-value (plist-get template :template)))
          (n-completions (or n-completions minuet-n-completions 1))
-         (n-completions-template (plist-get template :n-completions-template))
-         (n-completions-template (minuet--eval-value n-completions-template))
-         (n-completions-template (if (stringp n-completions-template)
-                                     (format n-completions-template n-completions)
-                                   "")))
-    (setq tmpl (replace-regexp-in-string "{{{:n-completions-template}}}"
-                                         n-completions-template
-                                         tmpl)
-          tmpl (replace-regexp-in-string
-                "{{{\\([^{}]+\\)}}}"
-                (lambda (str)
-                  (minuet--eval-value (plist-get template (intern (match-string 1 str)))))
-                tmpl)
-          ;; replace placeholders that are not replaced
-          tmpl (replace-regexp-in-string "{{{.*}}}" "" tmpl))))
+         (n-completions-template
+          (minuet--eval-value (plist-get template :n-completions-template)))
+         (n-completions-template (and n-completions-template
+                                      (format n-completions-template n-completions))))
+    (minuet--expand-template
+     tmpl
+     (lambda (key)
+       (cond ((eq key :n-completions-template) n-completions-template)
+             ((eq key :template) nil)
+             (t (minuet--eval-value (plist-get template key))))))))
 
 (defun minuet--apply-request-transform (options end-point headers body)
   "Apply OPTIONS transform functions to END-POINT, HEADERS, and BODY.

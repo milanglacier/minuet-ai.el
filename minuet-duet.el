@@ -402,18 +402,11 @@ export async function sendUser(user: User, overrides = {}) {
 (defun minuet-duet--make-system-prompt (template)
   "Build system prompt string from duet TEMPLATE plist.
 TEMPLATE must be a plist with :template plus replacement keys."
-  (let* ((tmpl (minuet--eval-value (plist-get template :template)))
-         (keys (copy-sequence template)))
-    (setq keys (plist-put keys :template nil))
-    (cl-loop for (key val) on keys by #'cddr
-             when key do
-             (let* ((rendered (minuet--eval-value val))
-                    (rendered (if (stringp rendered) rendered "")))
-               (setq tmpl (replace-regexp-in-string
-                           (regexp-quote (format "{{{%s}}}" key))
-                           rendered tmpl t t))))
-    ;; Remove unresolved placeholders
-    (replace-regexp-in-string "{{{[^}]*}}}" "" tmpl)))
+  (minuet--expand-template
+   (minuet--eval-value (plist-get template :template))
+   (lambda (key)
+     (unless (eq key :template)
+       (minuet--eval-value (plist-get template key))))))
 
 ;;;;;
 ;; Chat input builder
@@ -421,26 +414,12 @@ TEMPLATE must be a plist with :template plus replacement keys."
 
 (defun minuet-duet--make-chat-input (context chat-input)
   "Build the user chat input string from CONTEXT and CHAT-INPUT spec."
-  (let* ((template (minuet--eval-value (plist-get chat-input :template)))
-         (parts nil))
-    (unless (stringp template)
-      (setq template ""))
-    (cl-loop with last-pos = 0
-             for match = (string-match "{{{\\(.+?\\)}}}" template last-pos)
-             until (not match)
-             for start-pos = (match-beginning 0)
-             for end-pos = (match-end 0)
-             for key = (match-string 1 template)
-             do
-             (when (> start-pos last-pos)
-               (push (substring template last-pos start-pos) parts))
-             (when-let* ((repl-fn (plist-get chat-input (intern key)))
-                         (value (funcall repl-fn context)))
-               (push value parts))
-             (setq last-pos end-pos)
-             finally
-             (push (substring template last-pos) parts))
-    (apply #'concat (nreverse parts))))
+  (minuet--expand-template
+   (minuet--eval-value (plist-get chat-input :template))
+   (lambda (key)
+     (when-let* (((not (eq key :template)))
+                 (repl-fn (plist-get chat-input key)))
+       (funcall repl-fn context)))))
 
 ;;;;;
 ;; Context builder

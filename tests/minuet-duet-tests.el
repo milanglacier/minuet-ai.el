@@ -857,5 +857,11 @@ Use MESSAGE in the assertion failure."
     (dolist (ov minuet-duet--overlays) (delete-overlay ov))
     (should-not (minuet-duet-visible-p))))
 
+(ert-deftest minuet-duet-make-system-prompt-non-string-value-errors ()
+  "A template key whose rendered value is not a string signals an error."
+  (let ((template '(:template "a {{{:num}}} b" :num 42)))
+    (should-error (minuet-duet--make-system-prompt template)
+                  :type 'wrong-type-argument)))
+
 (provide 'minuet-duet-tests)
 ;;; minuet-duet-tests.el ends here
