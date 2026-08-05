@@ -630,9 +630,8 @@ Relevant options:
 - `minuet-duet-history-max-buffer-size`: buffers larger than this are not
   tracked (default 1000000).
 - `minuet-duet-history-diff-program`: the diff program to run (default
-  `diff`, expected on `PATH`; Windows users without one can point this at any
-  program that emits unified diffs with POSIX diff exit codes). The mode
-  refuses to enable when the program is not found.
+  `diff`, expected on `PATH`). Windows users with Git for Windows installed
+  already have `diff` bundled. The mode is disabled if the program is not found.
 - `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
   in-flight diff before proceeding with slightly stale history (default 0.2).
 
