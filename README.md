@@ -594,13 +594,13 @@ edit.
 
 ## Edit History
 
-To track your recent edits and incorporate them into duet prompts as
-unified diffs, enable `minuet-duet-history-mode` in a buffer. This
-feature is opt-in and must be activated per buffer.
+To track your recent edits and incorporate them into duet prompts as unified
+diffs, enable `minuet-duet-history-mode` in a buffer. This feature is opt-in and
+must be activated per buffer.
 
-Since history tracking saves temporary snapshots to disk, use a named
-hook function to exclude buffers with sensitive names. The following
-example skips `.env` files (including variants like `.env.local
+Since history tracking saves temporary snapshots to disk, use a named hook
+function to exclude buffers with sensitive names. The following example skips
+`.env` files (including variants like `.env.local
 
 ```elisp
 (defun my-minuet-duet-history-maybe-enable ()
@@ -617,23 +617,22 @@ Relevant options:
 
 - `minuet-duet-history-idle-delay`: idle seconds before pending edits are
   recorded (default 1.5).
-- `minuet-duet-history-max-entries`: history entries kept per buffer
-  (default 8).
-- `minuet-duet-history-max-entry-chars`: characters recorded per edit
-  (default 2000). A longer diff keeps only its leading whole hunks that fit;
-  when not even the first hunk fits (e.g. a large single-hunk paste), the
-  edit is not recorded.
-- `minuet-duet-history-diff-context-lines`: unchanged context lines shown
-  around each hunk (default 2).
+- `minuet-duet-history-max-entries`: history entries kept per buffer (default
+  8).
+- `minuet-duet-history-max-entry-chars`: characters recorded per edit (default
+  2000). A longer diff keeps only its leading whole hunks that fit; when not
+  even the first hunk fits (e.g. a large single-hunk paste), the edit is not
+  recorded.
+- `minuet-duet-history-diff-context-lines`: unchanged context lines shown around
+  each hunk (default 2).
 - `minuet-duet-history-max-prompt-chars`: total characters of history included
   in prompts; the newest entry is always included (default 6000).
 - `minuet-duet-history-max-buffer-size`: buffers larger than this are not
   tracked (default 1000000).
-- `minuet-duet-history-diff-program`: the diff program to run, either a
-  program name or a list of a program and its leading arguments. The default
-  is `diff`; on native Windows without `diff` on `PATH` it falls back to
-  `git diff --no-index` (chosen once, when the package is loaded). The mode
-  is disabled if the program is not found.
+- `minuet-duet-history-diff-program`: the diff program to run, either a program
+  name or a list of a program and its leading arguments. The default is `diff`;
+  on native Windows without `diff` on `PATH` it falls back to
+  `git diff --no-index`. The mode is disabled if the program is not found.
 - `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
   in-flight diff before proceeding with slightly stale history (default 0.2).
 
@@ -896,14 +895,14 @@ request timeout from outputing too many tokens.
 | **DeepSeek API**     | `thinking = { type = 'disabled' }`                                         |
 | **Various Provider** | `reasoning_effort = 'none'`                                                |
 
-````lisp
+```lisp
 ;; or "minimal", depending on the model (OpenRouter)
 (minuet-set-optional-options minuet-openai-compatible-options :reasoning '(:effort none))
 ;; or "minimal", depending on the model (various providers)
 (minuet-set-optional-options minuet-openai-compatible-options :reasoning_effort "none")
 ;; DeepSeek API
 (minuet-set-optional-options minuet-openai-compatible-options :thinking '(:type "disabled"))
-````
+```
 
 </details>
 
