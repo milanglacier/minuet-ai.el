@@ -86,6 +86,23 @@ BUDGET defaults to a bound larger than any test diff."
   (should (equal (minuet-duet-history-test--entry-string "@@ -1 +1 @@\n-a\n+b")
                  "@@ -1 +1 @@\n-a\n+b")))
 
+(ert-deftest minuet-duet-history-entry-string-git-headers ()
+  "The extra header lines of git diff --no-index output are dropped."
+  (should (equal (minuet-duet-history-test--entry-string
+                  (concat "diff --git a/tmp/snapshot-1 b/tmp/snapshot-2\n"
+                          "index e69de29..8baef1b 100644\n"
+                          "--- a/tmp/snapshot-1\n"
+                          "+++ b/tmp/snapshot-2\n"
+                          "@@ -1 +1 @@\n-a\n+b\n"))
+                 "@@ -1 +1 @@\n-a\n+b"))
+  ;; Function context that git appends after the hunk header is kept.
+  (should (equal (minuet-duet-history-test--entry-string
+                  (concat "diff --git a/x b/y\n"
+                          "index 1111111..2222222 100644\n"
+                          "--- a/x\n+++ b/y\n"
+                          "@@ -2,3 +2,4 @@ (defun foo ()\n a\n+b\n c\n d\n"))
+                 "@@ -2,3 +2,4 @@ (defun foo ()\n a\n+b\n c\n d")))
+
 (ert-deftest minuet-duet-history-entry-string-no-hunks ()
   "Output without @@ headers (e.g. binary files) yields nil."
   (should-not (minuet-duet-history-test--entry-string
@@ -195,6 +212,54 @@ BUDGET defaults to a bound larger than any test diff."
       (should-not (string-match-p (regexp-quote temporary-file-directory)
                                   entry)))))
 
+(ert-deftest minuet-duet-history-flush-list-diff-program ()
+  "A list-valued diff program records entries like a plain program name."
+  (skip-unless (executable-find "diff"))
+  (minuet-duet-history-test--with-buffer
+    (insert "a\nb\n")
+    (let ((minuet-duet-history-diff-program '("diff")))
+      (minuet-duet-history-mode 1)
+      (should minuet-duet-history-mode)
+      (goto-char (point-max))
+      (insert "c\n")
+      (minuet-duet-history-test--flush)
+      (should (= (length minuet-duet-history--entries) 1))
+      (should (string-match-p "\\+c" (car minuet-duet-history--entries))))))
+
+(ert-deftest minuet-duet-history-flush-git-no-index ()
+  "The git diff --no-index fallback records entries end-to-end.
+Real git output has extra header lines before the hunks and exit
+status 1 on differing files; the recorded entry contains only the
+hunks, and a burst that reverts to the snapshot (git exits 0) records
+nothing."
+  (skip-unless (executable-find "git"))
+  (minuet-duet-history-test--with-buffer
+    (insert "a\nb\n")
+    (let ((minuet-duet-history-diff-program
+           '("git" "diff" "--no-index" "--no-ext-diff" "--no-textconv"
+             "--no-color")))
+      (minuet-duet-history-mode 1)
+      (should minuet-duet-history-mode)
+      (goto-char (point-max))
+      (insert "c\n")
+      (minuet-duet-history-test--flush)
+      (let ((entry (car minuet-duet-history--entries)))
+        (should entry)
+        (should (string-prefix-p "@@ " entry))
+        (should (string-match-p "\\+c" entry))
+        (should-not (string-match-p "^diff --git" entry))
+        (should-not (string-match-p (regexp-quote temporary-file-directory)
+                                    entry)))
+      ;; An edit undone before the flush leaves the buffer identical to
+      ;; the snapshot; git exits 0 and no entry is recorded.
+      (goto-char (point-max))
+      (insert "d")
+      (delete-char -1)
+      (minuet-duet-history-test--flush)
+      (should (= (length minuet-duet-history--entries) 1))
+      (should (eql minuet-duet-history--snapshot-tick
+                   (buffer-chars-modified-tick))))))
+
 (ert-deftest minuet-duet-history-flush-ignores-reverted-edit ()
   "An edit undone back to the snapshot updates the tick but adds no entry."
   (minuet-duet-history-test--with-buffer
@@ -291,6 +356,17 @@ BUDGET defaults to a bound larger than any test diff."
       (should-not minuet-duet-history-mode)
       (should-not minuet-duet-history--timer)
       ;; The refusal happens before any snapshot file is allocated.
+      (should-not minuet-duet-history--directory))))
+
+(ert-deftest minuet-duet-history-mode-refuses-missing-list-diff-program ()
+  "A list-valued diff program is checked by its first element."
+  (minuet-duet-history-test--with-buffer
+    (insert "a\n")
+    (let ((minuet-duet-history-diff-program
+           '("minuet-no-such-diff-xyz" "--no-index")))
+      (minuet-duet-history-mode 1)
+      (should-not minuet-duet-history-mode)
+      (should-not minuet-duet-history--timer)
       (should-not minuet-duet-history--directory))))
 
 (ert-deftest minuet-duet-history-refusal-leaves-no-timer ()

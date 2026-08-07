@@ -35,8 +35,9 @@
 ;; shared session directory (deleted at `kill-emacs') written with
 ;; `write-region' (no Lisp string is allocated), and the diff is
 ;; computed asynchronously by an external program
-;; (`minuet-duet-history-diff-program'), producing one coalesced
-;; history entry per editing burst.
+;; (`minuet-duet-history-diff-program', by default diff, or `git diff
+;; --no-index' on native Windows without diff on PATH), producing one
+;; coalesced history entry per editing burst.
 ;; `minuet-duet--build-context' calls `minuet-duet-history-flush',
 ;; which waits for the in-flight diff up to
 ;; `minuet-duet-history-flush-timeout' seconds, so the burst typed
@@ -103,14 +104,19 @@ auto-disables if a tracked buffer grows past this size."
   :type 'integer
   :group 'minuet-duet)
 
-(defcustom minuet-duet-history-diff-program "diff"
+(defcustom minuet-duet-history-diff-program
+  (if (and (eq system-type 'windows-nt)
+           (not (executable-find "diff")))
+      '("git" "diff" "--no-index" "--no-ext-diff" "--no-textconv"
+        "--no-color")
+    "diff")
   "Program used to diff buffer snapshots.
-It is invoked as PROGRAM -UN OLD NEW and must produce a unified diff
-on stdout, exiting with status 0 when the files are identical, 1 when
-they differ, and 2 or greater on error (the convention of POSIX
-diff).  `minuet-duet-history-mode' refuses to enable when the program
-is not found."
-  :type 'string
+Either a program name, or a list of the program followed by leading
+arguments.  Defaults to \"diff\", or to `git diff --no-index' on
+native Windows when diff is not on PATH.  `minuet-duet-history-mode'
+refuses to enable when the program is not found."
+  :type '(choice (string :tag "Program")
+                 (repeat :tag "Program and leading arguments" string))
   :group 'minuet-duet)
 
 (defcustom minuet-duet-history-flush-timeout 0.2
@@ -166,19 +172,21 @@ completes, so the two files ping-pong roles.")
 
 (defun minuet-duet-history--entry-string (budget)
   "Return the unified diff in the current buffer as a history entry.
-The ---/+++ file header lines, which name the snapshot files and would
-leak temporary file paths into prompts, and the trailing newline are
-dropped.  A diff longer than BUDGET characters is truncated to the
-leading whole hunks that fit, so an oversized burst keeps its head
-instead of vanishing from history.  Returns nil when the buffer
-contains no hunks (e.g. for binary input) or not even the first hunk
-fits."
+Everything before the first hunk is dropped: the ---/+++ file header
+lines, and with git the diff --git/index lines too, all of which name
+the snapshot files and would leak temporary file paths into prompts.
+The trailing newline is also dropped.  A hunk starts at a line
+beginning with @@ (hunk body lines always start with a space, +, -,
+or backslash, so this is unambiguous); any function context git
+appends after the hunk header is kept.  A diff longer than BUDGET
+characters is truncated to the leading whole hunks that fit, so an
+oversized burst keeps its head instead of vanishing from history.
+Returns nil when the buffer contains no hunks (e.g. for binary input)
+or not even the first hunk fits."
   (save-excursion
     (goto-char (point-min))
-    (when (looking-at "--- [^\n]*\n\\+\\+\\+ [^\n]*\n")
-      (goto-char (match-end 0)))
-    (when-let* ((_ (looking-at "@@"))
-                (start (point))
+    (when-let* ((_ (re-search-forward "^@@" nil t))
+                (start (match-beginning 0))
                 (end (if (eq (char-before (point-max)) ?\n)
                          (1- (point-max))
                        (point-max)))
@@ -357,11 +365,12 @@ buffers are killed here if starting the process signals."
                (process
                 (make-process
                  :name "minuet-duet-history-diff"
-                 :command (list minuet-duet-history-diff-program
-                                (format "-U%d"
-                                        (max 0 minuet-duet-history-diff-context-lines))
-                                minuet-duet-history--snapshot-file
-                                minuet-duet-history--pending-file)
+                 :command (append
+                           (ensure-list minuet-duet-history-diff-program)
+                           (list (format "-U%d"
+                                         (max 0 minuet-duet-history-diff-context-lines))
+                                 minuet-duet-history--snapshot-file
+                                 minuet-duet-history--pending-file))
                  :buffer stdout
                  :stderr stderr
                  :coding 'utf-8-unix
@@ -412,7 +421,8 @@ sentinel with the tracked buffer current."
      ((or (eq status 'signal) (>= code 2))
       (minuet--log
        (format "Minuet duet history: %s failed in %s (%s): %s"
-               minuet-duet-history-diff-program (buffer-name)
+               (car (ensure-list minuet-duet-history-diff-program))
+               (buffer-name)
                (if (eq status 'signal) "signal" code)
                (string-trim
                 (with-current-buffer stderr (buffer-string))))))
@@ -577,7 +587,8 @@ intent from what they have been doing."
          (format "Minuet duet history: buffer %s exceeds `minuet-duet-history-max-buffer-size'; not tracking."
                  (buffer-name))
          t))
-       ((not (executable-find minuet-duet-history-diff-program))
+       ((not (executable-find
+              (car (ensure-list minuet-duet-history-diff-program))))
         (setq minuet-duet-history-mode nil)
         (minuet-duet-history--cancel-timer)
         (minuet--log

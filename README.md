@@ -629,9 +629,11 @@ Relevant options:
   in prompts; the newest entry is always included (default 6000).
 - `minuet-duet-history-max-buffer-size`: buffers larger than this are not
   tracked (default 1000000).
-- `minuet-duet-history-diff-program`: the diff program to run (default
-  `diff`, expected on `PATH`). Windows users with Git for Windows installed
-  already have `diff` bundled. The mode is disabled if the program is not found.
+- `minuet-duet-history-diff-program`: the diff program to run, either a
+  program name or a list of a program and its leading arguments. The default
+  is `diff`; on native Windows without `diff` on `PATH` it falls back to
+  `git diff --no-index` (chosen once, when the package is loaded). The mode
+  is disabled if the program is not found.
 - `minuet-duet-history-flush-timeout`: seconds a prediction waits for the
   in-flight diff before proceeding with slightly stale history (default 0.2).
 
