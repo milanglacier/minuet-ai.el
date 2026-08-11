@@ -25,6 +25,7 @@
   - [minuet-auto-suggestion-debounce-delay](#minuet-auto-suggestion-debounce-delay)
   - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
 - [Duet (Next Edit Prediction)](#duet-next-edit-prediction)
+  - [Automatic Prediction](#automatic-prediction)
   - [Context Options](#context-options)
   - [Edit History](#edit-history)
   - [TODO](#todo)
@@ -565,8 +566,10 @@ This feature is highly experimental:
   performs well with the prompt structure.
 - Comparable small models from competitors of Google—`claude-haiku-4.5` and
   `gpt-5.4-mini`—perform poorly.
-- Given completion latency constraints, automatic duet prediction is not
-  implemented.
+- Automatic prediction is available through `minuet-duet-auto-mode` (see
+  [Automatic Prediction](#automatic-prediction)), but the feature is
+  latency-sensitive: pick a fast model, and consider raising
+  `minuet-duet-auto-debounce-delay` for slower providers.
 
 It is recommended to configure the thinking levels of the models; refer to the
 [provider options](#provider-options) for guidance on managing thinking settings
@@ -579,6 +582,51 @@ requests. Duet expects the model to return the complete rewritten editable
 region, including the cursor marker; if the response is truncated, the parser
 will reject it. Leave the limit unset when the provider allows that, or set it
 large enough to cover the full rewritten region.
+
+## Automatic Prediction
+
+Enable `minuet-duet-auto-mode` in a buffer to request predictions
+automatically:
+
+```elisp
+(add-hook 'prog-mode-hook #'minuet-duet-auto-mode)
+```
+
+A prediction is requested shortly after you edit the buffer. Moving the cursor
+without editing never triggers a request, and there is no throttling: the
+debounce delay is the only rate limiter.
+
+Applying a prediction with `minuet-duet-apply` counts as an edit like any
+other, so consecutive predictions chain (accept, accept, accept) through the
+same debounce.
+
+By default, enabling the mode also enables `minuet-duet-history-mode` in the
+buffer, so predictions can use your recent edits. Since history tracking saves
+temporary snapshots to disk, see [Edit History](#edit-history) for how to keep
+it out of buffers with sensitive names; the same named-hook-function pattern
+applies to `minuet-duet-auto-mode`. Disabling the auto mode leaves the history
+mode on.
+
+Running `minuet-duet-auto-mode` together with `minuet-auto-suggestion-mode` is
+allowed, but both will issue requests as you type; you likely want one or the
+other in a given buffer.
+
+Relevant options:
+
+- `minuet-duet-auto-debounce-delay`: seconds to wait after you stop editing
+  before requesting a prediction; each new edit restarts the wait (default
+  0.6).
+- `minuet-duet-auto-block-predicates`: list of functions called before an
+  automatic prediction; if any returns non-nil, no prediction is requested at
+  that moment. The default is empty. Unlike inline completion, duet rewrites a
+  text region based on your recent edits, so edits made outside evil insert
+  state (for example deleting lines in normal state) still trigger
+  predictions.
+- `minuet-duet-auto-enable-history`: whether enabling the mode also enables
+  `minuet-duet-history-mode` (default t).
+- `minuet-duet-auto-flush-timeout`: seconds an automatic prediction waits for
+  the pending edit diff, used instead of `minuet-duet-history-flush-timeout`
+  so automatic requests block Emacs for less time (default 0.1).
 
 ## Context Options
 
@@ -641,7 +689,7 @@ Relevant options:
 - [x] Implement a proper diff mechanism to include recent edit changes in
       prompts.
 - [ ] Add support for specialized NES models (Zeta, Sweep).
-- [ ] Implement automatically triggered duet prediction.
+- [x] Implement automatically triggered duet prediction.
 
 # Provider Options
 
