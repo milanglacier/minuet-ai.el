@@ -911,6 +911,46 @@ are disabled when BODY finishes."
     (should minuet-duet-auto-mode)
     (should-not minuet-duet-history-mode)))
 
+(ert-deftest minuet-duet-auto-clone-detaches-inherited-timer ()
+  "An indirect clone does not share the base buffer's pending timer."
+  (let ((base (generate-new-buffer "minuet-duet-auto-clone-base"))
+        clone timer)
+    (unwind-protect
+        (progn
+          (with-current-buffer base
+            (let ((minuet-duet-auto-enable-history nil))
+              (minuet-duet-auto-mode 1))
+            (insert "x")
+            (let ((this-command 'self-insert-command))
+              (minuet-duet-auto--maybe-predict))
+            (setq timer minuet-duet--auto-debounce-timer
+                  clone
+                  (clone-indirect-buffer
+                   (generate-new-buffer-name
+                    "minuet-duet-auto-clone-indirect")
+                   nil)))
+          (should (buffer-local-value 'minuet-duet-auto-mode clone))
+          (should-not (buffer-local-value
+                       'minuet-duet--auto-debounce-timer clone))
+          (with-current-buffer clone
+            (should (eql minuet-duet--auto-last-tick
+                         (buffer-chars-modified-tick)))
+            (minuet-duet-auto-mode -1))
+          (should (eq (buffer-local-value
+                       'minuet-duet--auto-debounce-timer base)
+                      timer))
+          (should (memq timer timer-idle-list)))
+      (when (buffer-live-p clone)
+        (with-current-buffer clone
+          (when minuet-duet-auto-mode
+            (minuet-duet-auto-mode -1)))
+        (kill-buffer clone))
+      (when (buffer-live-p base)
+        (with-current-buffer base
+          (when minuet-duet-auto-mode
+            (minuet-duet-auto-mode -1)))
+        (kill-buffer base)))))
+
 (ert-deftest minuet-duet-auto-mode-survives-history-refusal ()
   "Auto mode still predicts when history mode refuses to enable."
   (minuet-duet-test--with-auto-buffer
@@ -973,19 +1013,18 @@ are disabled when BODY finishes."
       (minuet-duet-auto--maybe-predict))
     (should (null minuet-duet--auto-debounce-timer))))
 
-(ert-deftest minuet-duet-auto-skips-and-consumes-other-minuet-commands ()
-  "Edits made by other minuet commands never lead to a prediction."
+(ert-deftest minuet-duet-auto-preserves-edit-after-no-op-minuet-command ()
+  "A non-editing Minuet command does not consume a pending edit."
   (minuet-duet-test--with-auto-buffer
     (minuet-duet-auto-mode 1)
-    (insert "accepted completion")
-    (let ((this-command 'minuet-accept-suggestion))
+    (insert "x")
+    (let ((this-command 'self-insert-command))
       (minuet-duet-auto--maybe-predict))
-    (should (= predict-calls 0))
-    (should (null minuet-duet--auto-debounce-timer))
-    (should (eql minuet-duet--auto-last-tick (buffer-chars-modified-tick)))
-    (let ((this-command 'next-line))
+    (let ((this-command 'minuet-dismiss-suggestion))
       (minuet-duet-auto--maybe-predict))
-    (should (null minuet-duet--auto-debounce-timer))))
+    (should minuet-duet--auto-debounce-timer)
+    (funcall (timer--function minuet-duet--auto-debounce-timer))
+    (should (= predict-calls 1))))
 
 (ert-deftest minuet-duet-auto-debounce-resets-timer ()
   "A second edit cancels the first debounce timer and schedules a new one."

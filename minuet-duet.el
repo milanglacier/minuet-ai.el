@@ -85,12 +85,7 @@ mode on."
 
 Each function is called with no arguments right before an automatic
 prediction would be requested.  If any of them returns non-nil, no
-prediction is requested at that moment.
-
-The default is empty: unlike inline completion, duet rewrites a text
-region based on your recent edits, so edits made outside evil insert
-state (for example deleting lines in normal state) should still
-trigger predictions."
+prediction is requested at that moment."
   :type '(repeat function))
 
 (defcustom minuet-duet-editable-region-lines-before 8
@@ -437,10 +432,7 @@ export async function sendUser(user: User, overrides = {}) {
   "Timer for debouncing automatic duet predictions.")
 
 (defvar-local minuet-duet--auto-last-tick nil
-  "Value of `buffer-chars-modified-tick' at the last automatic trigger.
-Initialized when `minuet-duet-auto-mode' is enabled, so the first
-automatic prediction requires a real edit.  Also synced when a minuet
-command edits the buffer, so those edits do not trigger predictions.")
+  "Value of `buffer-chars-modified-tick' at the last automatic trigger.")
 
 ;;;;;
 ;; System prompt builder
@@ -1190,11 +1182,7 @@ CONTEXT and CALLBACK as in `minuet-duet--openai-complete-base'."
 (defvar minuet-duet-auto-mode)
 
 (defun minuet-duet-auto--predict ()
-  "Request an automatic duet prediction in the current buffer.
-Records the current buffer tick so the same edit does not trigger
-again, uses the shorter `minuet-duet-auto-flush-timeout' for the
-history flush, and logs errors instead of signaling, since this runs
-from a timer."
+  "Request an automatic duet prediction in the current buffer."
   (setq minuet-duet--auto-last-tick (buffer-chars-modified-tick))
   (condition-case err
       (let ((minuet-duet-history-flush-timeout minuet-duet-auto-flush-timeout))
@@ -1208,17 +1196,8 @@ from a timer."
   "Schedule a debounced duet prediction when the buffer was edited.
 Runs on `post-command-hook'.  Pure cursor movement never triggers a
 prediction: one is only scheduled when the buffer text changed since
-the last automatic trigger.  Applying a prediction with
-`minuet-duet-apply' counts as an edit like any other, so consecutive
-predictions chain through the same debounce.  Edits made by other
-minuet commands are recorded but do not trigger a prediction."
-  (cond
-   ((and (minuet--is-minuet-command)
-         (not (eq this-command 'minuet-duet-apply)))
-    ;; Consume edits made by minuet commands so a later cursor motion
-    ;; does not trigger a prediction for them.
-    (setq minuet-duet--auto-last-tick (buffer-chars-modified-tick)))
-   ((not (eql (buffer-chars-modified-tick) minuet-duet--auto-last-tick))
+the last automatic trigger."
+  (unless (eql (buffer-chars-modified-tick) minuet-duet--auto-last-tick)
     (when minuet-duet--auto-debounce-timer
       (cancel-timer minuet-duet--auto-debounce-timer))
     (setq minuet-duet--auto-debounce-timer
@@ -1232,7 +1211,13 @@ minuet commands are recorded but do not trigger a prediction."
                                     minuet-duet--auto-last-tick))
                           (not (run-hook-with-args-until-success
                                 'minuet-duet-auto-block-predicates)))
-                 (minuet-duet-auto--predict)))))))))
+                 (minuet-duet-auto--predict))))))))
+
+(defun minuet-duet-auto--on-clone ()
+  "Initialize automatic prediction state in an indirect clone."
+  (when minuet-duet-auto-mode
+    (setq minuet-duet--auto-debounce-timer nil
+          minuet-duet--auto-last-tick (buffer-chars-modified-tick))))
 
 (defun minuet-duet-auto--setup ()
   "Set up automatic duet prediction in the current buffer."
@@ -1242,12 +1227,16 @@ minuet commands are recorded but do not trigger a prediction."
     ;; May refuse to enable (oversized buffer, missing diff program);
     ;; predictions then simply run without edit history.
     (minuet-duet-history-mode 1))
-  (add-hook 'post-command-hook #'minuet-duet-auto--maybe-predict nil t))
+  (add-hook 'post-command-hook #'minuet-duet-auto--maybe-predict nil t)
+  (add-hook 'clone-indirect-buffer-hook
+            #'minuet-duet-auto--on-clone nil t))
 
 (defun minuet-duet-auto--cleanup ()
   "Tear down automatic duet prediction in the current buffer.
 Leaves `minuet-duet-history-mode' untouched."
   (remove-hook 'post-command-hook #'minuet-duet-auto--maybe-predict t)
+  (remove-hook 'clone-indirect-buffer-hook
+               #'minuet-duet-auto--on-clone t)
   (when minuet-duet--auto-debounce-timer
     (cancel-timer minuet-duet--auto-debounce-timer)
     (setq minuet-duet--auto-debounce-timer nil))
@@ -1258,10 +1247,9 @@ Leaves `minuet-duet-history-mode' untouched."
   "Toggle automatic duet (next-edit) predictions in this buffer.
 When enabled, Minuet automatically requests a next-edit prediction
 shortly after you edit the buffer.  Moving the cursor without editing
-never triggers a prediction, and applying a prediction counts as an
-edit, so predictions chain.  When `minuet-duet-auto-enable-history'
-is non-nil, enabling this mode also enables
-`minuet-duet-history-mode'; disabling it leaves the history mode on."
+never triggers a prediction When `minuet-duet-auto-enable-history' is
+non-nil, enabling this mode also enables `minuet-duet-history-mode';
+disabling it leaves the history mode on."
   :init-value nil
   :lighter " MinuetDuet"
   (if minuet-duet-auto-mode

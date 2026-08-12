@@ -592,21 +592,6 @@ automatically:
 (add-hook 'prog-mode-hook #'minuet-duet-auto-mode)
 ```
 
-A prediction is requested shortly after you edit the buffer. Moving the cursor
-without editing never triggers a request, and there is no throttling: the
-debounce delay is the only rate limiter.
-
-Applying a prediction with `minuet-duet-apply` counts as an edit like any
-other, so consecutive predictions chain (accept, accept, accept) through the
-same debounce.
-
-By default, enabling the mode also enables `minuet-duet-history-mode` in the
-buffer, so predictions can use your recent edits. Since history tracking saves
-temporary snapshots to disk, see [Edit History](#edit-history) for how to keep
-it out of buffers with sensitive names; the same named-hook-function pattern
-applies to `minuet-duet-auto-mode`. Disabling the auto mode leaves the history
-mode on.
-
 Running `minuet-duet-auto-mode` together with `minuet-auto-suggestion-mode` is
 allowed, but both will issue requests as you type; you likely want one or the
 other in a given buffer.
@@ -624,9 +609,6 @@ Relevant options:
   predictions.
 - `minuet-duet-auto-enable-history`: whether enabling the mode also enables
   `minuet-duet-history-mode` (default t).
-- `minuet-duet-auto-flush-timeout`: seconds an automatic prediction waits for
-  the pending edit diff, used instead of `minuet-duet-history-flush-timeout`
-  so automatic requests block Emacs for less time (default 0.1).
 
 ## Context Options
 
