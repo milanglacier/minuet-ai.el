@@ -47,11 +47,10 @@ process sentinels) is accepted while waiting."
 
 (defun minuet-test--ensure-packages (packages)
   "Install each package in PACKAGES if it is not already available."
-  (let ((missing (seq-remove #'package-installed-p packages)))
-    (when missing
-      (package-refresh-contents)
-      (dolist (pkg missing)
-        (package-install pkg)))))
+  (when-let* ((missing (seq-remove #'package-installed-p packages)))
+    (package-refresh-contents)
+    (dolist (pkg missing)
+      (package-install pkg))))
 
 (let* ((this-file (or load-file-name (buffer-file-name)))
        (tests-dir (file-name-directory this-file))

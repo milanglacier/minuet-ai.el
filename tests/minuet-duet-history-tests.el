@@ -1070,11 +1070,11 @@ narrowing itself is left in place."
   (minuet-duet-history-test--with-buffer
     (minuet-duet-history-mode 1)
     (setq minuet-duet-history--entries '("E-NEWEST" "E-MIDDLE" "E-OLDEST"))
-    (let ((minuet-duet-history-max-prompt-chars 10))
-      (let ((text (minuet-duet-history-prompt-text)))
-        (should (string-match-p "E-NEWEST" text))
-        (should-not (string-match-p "E-MIDDLE" text))
-        (should-not (string-match-p "E-OLDEST" text))))
+    (let* ((minuet-duet-history-max-prompt-chars 10)
+           (text (minuet-duet-history-prompt-text)))
+      (should (string-match-p "E-NEWEST" text))
+      (should-not (string-match-p "E-MIDDLE" text))
+      (should-not (string-match-p "E-OLDEST" text)))
     (let ((minuet-duet-history-max-prompt-chars 2))
       (should (string-match-p "E-NEWEST" (minuet-duet-history-prompt-text))))))
 
