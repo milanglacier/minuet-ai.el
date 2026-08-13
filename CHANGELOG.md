@@ -1,3 +1,13 @@
+# Version 0.10.0 (TBD)
+
+## Features
+
+- **Automatic Duet Prediction**: Add `minuet-duet-auto-mode`, a buffer-local
+  minor mode that automatically requests a next-edit prediction shortly after
+  you edit the buffer. Applying a prediction counts as an edit, so consecutive
+  predictions chain. By default the mode also enables
+  `minuet-duet-history-mode`.
+
 # Version 0.9.0 (2026-07-31)
 
 ## Features

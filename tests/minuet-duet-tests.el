@@ -863,5 +863,245 @@ Use MESSAGE in the assertion failure."
     (should-error (minuet-duet--make-system-prompt template)
                   :type 'wrong-type-argument)))
 
+;;;;;
+;; Automatic prediction tests
+;;;;;
+
+(defmacro minuet-duet-test--with-auto-buffer (&rest body)
+  "Run BODY in a temp buffer with `minuet-duet-predict' stubbed.
+The stub increments the variable `predict-calls', which BODY can
+inspect.  Both `minuet-duet-auto-mode' and `minuet-duet-history-mode'
+are disabled when BODY finishes."
+  (declare (indent 0))
+  `(with-temp-buffer
+     (let ((predict-calls 0))
+       (ignore predict-calls)
+       (cl-letf (((symbol-function 'minuet-duet-predict)
+                  (lambda () (cl-incf predict-calls))))
+         (unwind-protect
+             (progn ,@body)
+           (when minuet-duet-auto-mode (minuet-duet-auto-mode -1))
+           (when minuet-duet-history-mode (minuet-duet-history-mode -1)))))))
+
+(ert-deftest minuet-duet-auto-mode-toggling ()
+  "Enabling installs the hook and state; disabling removes them."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (should minuet-duet-auto-mode)
+    (should (memq #'minuet-duet-auto--maybe-predict post-command-hook))
+    (should (eql minuet-duet--auto-last-tick (buffer-chars-modified-tick)))
+    (minuet-duet-auto-mode -1)
+    (should-not (memq #'minuet-duet-auto--maybe-predict post-command-hook))
+    (should (null minuet-duet--auto-debounce-timer))
+    (should (null minuet-duet--auto-last-tick))))
+
+(ert-deftest minuet-duet-auto-mode-enables-history ()
+  "Enabling auto mode also enables history mode and leaves it on."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (should minuet-duet-history-mode)
+    (minuet-duet-auto-mode -1)
+    (should minuet-duet-history-mode)))
+
+(ert-deftest minuet-duet-auto-mode-respects-enable-history-nil ()
+  "History mode stays off when `minuet-duet-auto-enable-history' is nil."
+  (minuet-duet-test--with-auto-buffer
+    (let ((minuet-duet-auto-enable-history nil))
+      (minuet-duet-auto-mode 1))
+    (should minuet-duet-auto-mode)
+    (should-not minuet-duet-history-mode)))
+
+(ert-deftest minuet-duet-auto-clone-detaches-inherited-timer ()
+  "An indirect clone does not share the base buffer's pending timer."
+  (let ((base (generate-new-buffer "minuet-duet-auto-clone-base"))
+        clone timer)
+    (unwind-protect
+        (progn
+          (with-current-buffer base
+            (let ((minuet-duet-auto-enable-history nil))
+              (minuet-duet-auto-mode 1))
+            (insert "x")
+            (let ((this-command 'self-insert-command))
+              (minuet-duet-auto--maybe-predict))
+            (setq timer minuet-duet--auto-debounce-timer
+                  clone
+                  (clone-indirect-buffer
+                   (generate-new-buffer-name
+                    "minuet-duet-auto-clone-indirect")
+                   nil)))
+          (should (buffer-local-value 'minuet-duet-auto-mode clone))
+          (should-not (buffer-local-value
+                       'minuet-duet--auto-debounce-timer clone))
+          (with-current-buffer clone
+            (should (eql minuet-duet--auto-last-tick
+                         (buffer-chars-modified-tick)))
+            (minuet-duet-auto-mode -1))
+          (should (eq (buffer-local-value
+                       'minuet-duet--auto-debounce-timer base)
+                      timer))
+          (should (memq timer timer-idle-list)))
+      (when (buffer-live-p clone)
+        (with-current-buffer clone
+          (when minuet-duet-auto-mode
+            (minuet-duet-auto-mode -1)))
+        (kill-buffer clone))
+      (when (buffer-live-p base)
+        (with-current-buffer base
+          (when minuet-duet-auto-mode
+            (minuet-duet-auto-mode -1)))
+        (kill-buffer base)))))
+
+(ert-deftest minuet-duet-auto-mode-survives-history-refusal ()
+  "Auto mode still predicts when history mode refuses to enable."
+  (minuet-duet-test--with-auto-buffer
+    (cl-letf (((symbol-function 'minuet--log) #'ignore))
+      (let ((minuet-duet-history-diff-program "minuet-nonexistent-diff"))
+        (minuet-duet-auto-mode 1)))
+    (should minuet-duet-auto-mode)
+    (should-not minuet-duet-history-mode)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (should minuet-duet--auto-debounce-timer)
+    (funcall (timer--function minuet-duet--auto-debounce-timer))
+    (should (= predict-calls 1))))
+
+(ert-deftest minuet-duet-auto-no-trigger-without-edit ()
+  "Cursor movement without an edit schedules no prediction."
+  (minuet-duet-test--with-auto-buffer
+    (insert "some text")
+    (minuet-duet-auto-mode 1)
+    (let ((this-command 'next-line))
+      (minuet-duet-auto--maybe-predict))
+    (should (null minuet-duet--auto-debounce-timer))))
+
+(ert-deftest minuet-duet-auto-triggers-on-edit-once ()
+  "An edit triggers one prediction; no re-trigger without a new edit."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (should minuet-duet--auto-debounce-timer)
+    (let ((timer minuet-duet--auto-debounce-timer))
+      (funcall (timer--function timer))
+      (should (= predict-calls 1))
+      (should (eql minuet-duet--auto-last-tick (buffer-chars-modified-tick)))
+      (let ((this-command 'next-line))
+        (minuet-duet-auto--maybe-predict))
+      ;; No new timer was scheduled for the already-consumed edit.
+      (should (eq minuet-duet--auto-debounce-timer timer))
+      (should (= predict-calls 1)))))
+
+(ert-deftest minuet-duet-auto-chains-after-apply ()
+  "Applying a prediction schedules the next one like a regular edit."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "applied text")
+    (let ((this-command 'minuet-duet-apply))
+      (minuet-duet-auto--maybe-predict))
+    (should minuet-duet--auto-debounce-timer)
+    (funcall (timer--function minuet-duet--auto-debounce-timer))
+    (should (= predict-calls 1))
+    (should (eql minuet-duet--auto-last-tick (buffer-chars-modified-tick)))))
+
+(ert-deftest minuet-duet-auto-no-chain-after-no-op-apply ()
+  "An apply that changed nothing schedules no prediction."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (let ((this-command 'minuet-duet-apply))
+      (minuet-duet-auto--maybe-predict))
+    (should (null minuet-duet--auto-debounce-timer))))
+
+(ert-deftest minuet-duet-auto-preserves-edit-after-no-op-minuet-command ()
+  "A non-editing Minuet command does not consume a pending edit."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (let ((this-command 'minuet-dismiss-suggestion))
+      (minuet-duet-auto--maybe-predict))
+    (should minuet-duet--auto-debounce-timer)
+    (funcall (timer--function minuet-duet--auto-debounce-timer))
+    (should (= predict-calls 1))))
+
+(ert-deftest minuet-duet-auto-debounce-resets-timer ()
+  "A second edit cancels the first debounce timer and schedules a new one."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (let ((first-timer minuet-duet--auto-debounce-timer))
+      (insert "y")
+      (let ((this-command 'self-insert-command))
+        (minuet-duet-auto--maybe-predict))
+      (should-not (eq minuet-duet--auto-debounce-timer first-timer))
+      (should-not (memq first-timer timer-idle-list)))))
+
+(ert-deftest minuet-duet-auto-callback-wrong-buffer ()
+  "A debounce callback firing in another buffer does nothing."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (let ((callback (timer--function minuet-duet--auto-debounce-timer)))
+      (with-temp-buffer
+        (funcall callback)))
+    (should (= predict-calls 0))))
+
+(ert-deftest minuet-duet-auto-callback-respects-mode-disabled ()
+  "A debounce callback firing after the mode was disabled does nothing."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (let ((callback (timer--function minuet-duet--auto-debounce-timer)))
+      (minuet-duet-auto-mode -1)
+      (funcall callback))
+    (should (= predict-calls 0))))
+
+(ert-deftest minuet-duet-auto-block-predicates-respected ()
+  "A blocking predicate skips the prediction and keeps the edit pending."
+  (minuet-duet-test--with-auto-buffer
+    (minuet-duet-auto-mode 1)
+    (insert "x")
+    (let ((this-command 'self-insert-command))
+      (minuet-duet-auto--maybe-predict))
+    (let ((callback (timer--function minuet-duet--auto-debounce-timer)))
+      (let ((minuet-duet-auto-block-predicates (list (lambda () t))))
+        (funcall callback))
+      (should (= predict-calls 0))
+      ;; The edit was not consumed, so an unblocked run still predicts.
+      (funcall callback)
+      (should (= predict-calls 1)))))
+
+(ert-deftest minuet-duet-auto-uses-short-flush-timeout ()
+  "Automatic predictions use `minuet-duet-auto-flush-timeout' for the flush."
+  (with-temp-buffer
+    (let (captured)
+      (cl-letf (((symbol-function 'minuet-duet-predict)
+                 (lambda () (setq captured minuet-duet-history-flush-timeout))))
+        (minuet-duet-auto--predict))
+      (should (equal captured minuet-duet-auto-flush-timeout))
+      (should-not (equal captured minuet-duet-history-flush-timeout)))))
+
+(ert-deftest minuet-duet-auto-predict-demotes-errors ()
+  "Errors from the prediction are logged instead of signaled."
+  (with-temp-buffer
+    (let (logged)
+      (cl-letf (((symbol-function 'minuet-duet-predict)
+                 (lambda () (error "boom")))
+                ((symbol-function 'minuet--log)
+                 (lambda (message &optional _message-p)
+                   (push message logged)
+                   nil)))
+        (minuet-duet-auto--predict))
+      (should (eql minuet-duet--auto-last-tick (buffer-chars-modified-tick)))
+      (should logged))))
+
 (provide 'minuet-duet-tests)
 ;;; minuet-duet-tests.el ends here
