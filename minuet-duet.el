@@ -164,18 +164,15 @@ Set to 0 to disable suffix filtering."
 
 (defface minuet-duet-add-face
   '((t :inherit diff-refine-added))
-  "Face for proposed (added) lines in duet preview."
-  )
+  "Face for proposed (added) lines in duet preview.")
 
 (defface minuet-duet-delete-face
   '((t :inherit diff-removed))
-  "Face for lines to be deleted in duet preview."
-  )
+  "Face for lines to be deleted in duet preview.")
 
 (defface minuet-duet-cursor-face
   '((t :inherit isearch))
-  "Face for the predicted cursor glyph in duet preview."
-  )
+  "Face for the predicted cursor glyph in duet preview.")
 
 ;;;;;
 ;; Default prompts & templates
@@ -1257,4 +1254,9 @@ disabling it leaves the history mode on."
     (minuet-duet-auto--cleanup)))
 
 (provide 'minuet-duet)
+
+;; Local Variables:
+;; package-lint-main-file: "minuet.el"
+;; End:
+
 ;;; minuet-duet.el ends here

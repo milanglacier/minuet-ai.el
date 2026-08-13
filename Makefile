@@ -10,6 +10,9 @@ test: check
 check:
 	MINUET_TEST_EMACS_DIR="$(MINUET_TEST_EMACS_DIR)" \
 	$(EMACS) -Q --batch $(foreach file,$(TEST_FILES),-l $(file)) -f ert-run-tests-batch-and-exit
+	MINUET_TEST_EMACS_DIR="$(MINUET_TEST_EMACS_DIR)" \
+	$(EMACS) -Q --batch -l tests/test-helper.el -L . --eval "(require 'package-lint)" \
+	-f package-lint-batch-and-exit $(EL_FILES)
 
 compile:
 	MINUET_TEST_EMACS_DIR="$(MINUET_TEST_EMACS_DIR)" \

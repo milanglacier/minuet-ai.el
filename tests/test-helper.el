@@ -69,7 +69,7 @@ process sentinels) is accepted while waiting."
                                      ("nongnu" . 20)
                                      ("melpa" . 10)))
   (package-initialize)
-  (minuet-test--ensure-packages '(dash plz))
+  (minuet-test--ensure-packages '(dash plz package-lint))
   (package-initialize)
   (add-hook 'kill-emacs-hook #'minuet-test--cleanup-temp-dir)
   (add-to-list 'load-path project-dir))

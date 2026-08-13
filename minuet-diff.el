@@ -154,4 +154,9 @@ Otherwise it is a replacement."
     (minuet-diff--ops-to-hunks ops)))
 
 (provide 'minuet-diff)
+
+;; Local Variables:
+;; package-lint-main-file: "minuet.el"
+;; End:
+
 ;;; minuet-diff.el ends here

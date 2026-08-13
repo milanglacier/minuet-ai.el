@@ -708,4 +708,9 @@ oldest first."
      "\n</edit_history>")))
 
 (provide 'minuet-duet-history)
+
+;; Local Variables:
+;; package-lint-main-file: "minuet.el"
+;; End:
+
 ;;; minuet-duet-history.el ends here
