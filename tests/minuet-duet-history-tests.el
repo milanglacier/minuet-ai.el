@@ -32,8 +32,8 @@ Temp buffers are created with `inhibit-buffer-hooks', so
 `kill-buffer-hook' never runs for them; the mode is disabled before
 the buffer dies so its diff process is cancelled, its timer chain
 ends, and its snapshot files are deleted.  The let-bound snapshot
-directory is deleted afterwards, sweeping files stranded by the
-test."
+directory is deleted afterwards, sweeping up files left behind by
+the test."
   (declare (indent 0))
   `(let ((minuet-duet-history--directory nil))
      (unwind-protect
@@ -866,7 +866,7 @@ nothing behind.  Re-enabling afterwards re-initializes from scratch."
 
 (ert-deftest minuet-duet-history-delete-directory-sweeps-files ()
   "`minuet-duet-history--delete-directory' removes the directory and files.
-This is the `kill-emacs' backstop that also collects files stranded
+This is the `kill-emacs' backstop that also collects files left behind
 by buffers killed with their hooks inhibited."
   (minuet-duet-history-test--with-buffer
     (insert "a\n")
@@ -997,7 +997,7 @@ alone."
   "The timer run of a buffer that died without hooks ends its chain.
 Simulates a tracked buffer killed with its kill hook missing (e.g.
 `inhibit-buffer-hooks'): the next timer run finds the buffer dead,
-schedules no successor, and leaves the stranded snapshot files for
+schedules no successor, and leaves the snapshot files behind for
 the directory sweep at `kill-emacs' (the documented trade-off for
 this rare case)."
   (let ((minuet-duet-history--directory nil)
@@ -1021,7 +1021,7 @@ this rare case)."
           (minuet-duet-history--on-timer buffer)
           ;; No successor was scheduled: the chain has ended.
           (should-not (minuet-duet-history-test--timers-for buffer))
-          ;; The stranded files await the directory sweep.
+          ;; The files left behind await the directory sweep.
           (should (file-exists-p snapshot))
           (minuet-duet-history--delete-directory)
           (should-not (file-exists-p snapshot)))

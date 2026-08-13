@@ -139,7 +139,7 @@ Created lazily under function `temporary-file-directory' and deleted
 recursively at `kill-emacs'.  Snapshot files are normally deleted by
 their owner's lifecycle hooks; the directory sweep backstops buffers
 killed with their hooks inhibited (e.g. temp buffers created with
-`inhibit-buffer-hooks'), whose files would otherwise be stranded.")
+`inhibit-buffer-hooks'), whose files would otherwise be left behind.")
 
 (defvar-local minuet-duet-history--timer nil
   "One-shot idle timer scheduling this buffer's next flush, or nil.
@@ -254,7 +254,7 @@ sweep is installed when it is first created."
 
 (defun minuet-duet-history--delete-directory ()
   "Delete the snapshot directory and everything in it.
-Runs from `kill-emacs-hook'; also collects files stranded by buffers
+Runs from `kill-emacs-hook'; also collects files left behind by buffers
 that died without running `kill-buffer-hook'.  In-flight diff
 processes are not cancelled: they carry :noquery and die with Emacs.
 Native Windows may refuse to delete open snapshots, but this is
