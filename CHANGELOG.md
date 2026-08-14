@@ -1,12 +1,14 @@
-# Version 0.10.0 (TBD)
+# Version 0.10.0 (2026-08-14)
 
 ## Features
 
-- **Automatic Duet Prediction**: Add `minuet-duet-auto-mode`, a buffer-local
-  minor mode that automatically requests a next-edit prediction shortly after
-  you edit the buffer. Applying a prediction counts as an edit, so consecutive
-  predictions chain. By default the mode also enables
-  `minuet-duet-history-mode`.
+- **Automatic Duet Prediction**: Add `minuet-duet-auto-mode`, a minor mode that
+  automatically requests a next-edit prediction shortly after you edit the
+  buffer.
+- **Accept Suggestion by Word**: Add command `minuet-accept-suggestion-word`,
+  which accepts the first word of the current suggestion, or N words with a
+  numeric prefix argument, similar to `minuet-accept-suggestion-line`.
+- Change default `openai` provider model to `gpt-5.6-luna`.
 
 # Version 0.9.0 (2026-07-31)
 
