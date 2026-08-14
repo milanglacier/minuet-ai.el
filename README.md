@@ -610,6 +610,51 @@ Relevant options:
 - `minuet-duet-auto-enable-history`: whether enabling the mode also enables
   `minuet-duet-history-mode` (default t).
 
+### Combining Inline Completion and Duet Prediction
+
+You can run both modes in one buffer and use the block predicates to split
+responsibilities between them.  Below are two example setups.
+
+**Vanilla users: inline completion only at end of line, duet only elsewhere.**
+
+```elisp
+(defun my-minuet-inline-only-at-eol-p ()
+  "Return non-nil to block inline completion when point is not at EOL."
+  (not (eolp)))
+
+(defun my-minuet-duet-only-not-at-eol-p ()
+  "Return non-nil to block duet prediction when point is at EOL."
+  (eolp))
+
+(add-hook 'minuet-auto-suggestion-block-predicates
+          #'my-minuet-inline-only-at-eol-p)
+(add-hook 'minuet-duet-auto-block-predicates
+          #'my-minuet-duet-only-not-at-eol-p)
+
+(add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
+(add-hook 'prog-mode-hook #'minuet-duet-auto-mode)
+```
+
+**Evil users: inline completion in insert state, duet in normal state.**
+
+```lisp
+;; Block inline completion outside insert/emacs state. Note that this is
+;; already the default.
+(add-hook 'minuet-auto-suggestion-block-predicates
+          #'minuet-evil-not-insert-state-p)
+
+(defun my-minuet-duet-only-in-evil-normal-p ()
+  "Return non-nil to block duet prediction outside evil normal state."
+  (not (and (bound-and-true-p evil-local-mode)
+            (evil-normal-state-p))))
+
+(add-hook 'minuet-duet-auto-block-predicates
+          #'my-minuet-duet-only-in-evil-normal-p)
+
+(add-hook 'prog-mode-hook #'minuet-auto-suggestion-mode)
+(add-hook 'prog-mode-hook #'minuet-duet-auto-mode)
+```
+
 ## Context Options
 
 `minuet-duet-non-editable-region-context-window` controls the maximum total
