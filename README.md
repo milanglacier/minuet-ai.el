@@ -14,16 +14,6 @@
 - [Prompt](#prompt)
   - [Prefix-First vs. Suffix-First](#prefix-first-vs-suffix-first)
 - [Configuration](#configuration)
-  - [minuet-provider](#minuet-provider)
-  - [minuet-context-window](#minuet-context-window)
-  - [minuet-context-ratio](#minuet-context-ratio)
-  - [minuet-request-timeout](#minuet-request-timeout)
-  - [minuet-show-error-message-on-minibuffer](#minuet-show-error-message-on-minibuffer)
-  - [minuet-add-single-line-entry](#minuet-add-single-line-entry)
-  - [minuet-n-completions](#minuet-n-completions)
-  - [minuet-auto-suggestion-block-predicates](#minuet-auto-suggestion-block-predicates)
-  - [minuet-auto-suggestion-debounce-delay](#minuet-auto-suggestion-debounce-delay)
-  - [minuet-auto-suggestion-throttle-delay](#minuet-auto-suggestion-throttle-delay)
 - [Duet (Next Edit Prediction)](#duet-next-edit-prediction)
   - [Automatic Prediction](#automatic-prediction)
   - [Context Options](#context-options)
@@ -449,77 +439,64 @@ prompt construction methods:
 Below are commonly used configuration options. To view the complete list of
 available settings, search for `minuet` through the `customize` interface.
 
-## minuet-provider
+- `minuet-provider`: Set the provider you want to use for completion with minuet,
+  available options: `openai`, `openai-compatible`, `claude`, `gemini`,
+  `openai-fim-compatible`, and `codestral`.
 
-Set the provider you want to use for completion with minuet, available options:
-`openai`, `openai-compatible`, `claude`, `gemini`, `openai-fim-compatible`, and
-`codestral`.
+  The default is `openai-fim-compatible` using the deepseek endpoint.
 
-The default is `openai-fim-compatible` using the deepseek endpoint.
+  You can use `ollama` with either `openai-compatible` or
+  `openai-fim-compatible` provider, depending on your model is a chat model or
+  code completion (FIM) model.
 
-You can use `ollama` with either `openai-compatible` or `openai-fim-compatible`
-provider, depending on your model is a chat model or code completion (FIM)
-model.
+- `minuet-context-window`: The maximum total characters of the context before
+  and after cursor. This limits how much surrounding code is sent to the LLM
+  for context.
 
-## minuet-context-window
+  The default is 16000, which roughly equates to 4000 tokens after tokenization.
 
-The maximum total characters of the context before and after cursor. This limits
-how much surrounding code is sent to the LLM for context.
+- `minuet-context-ratio`: Ratio of context before cursor vs after cursor. When
+  the total characters exceed the context window, this ratio determines how much
+  context to keep before vs after the cursor. A larger ratio means more context
+  before the cursor will be used. The ratio should between 0 and `1`, and
+  default is `0.75`.
 
-The default is 16000, which roughly equates to 4000 tokens after tokenization.
+- `minuet-request-timeout`: Maximum timeout in seconds for sending completion
+  requests. In case of the timeout, the incomplete completion items will be
+  delivered. The default is `3`.
 
-## minuet-context-ratio
+- `minuet-show-error-message-on-minibuffer`: Whether to show the error messages
+  in minibuffer. The default value is `nil`. When non-nil, if a request fails or
+  times out without generating even a single token, the error message will be
+  shown in the minibuffer. Note that you can always inspect
+  `minuet-buffer-name` to view the complete error log.
 
-Ratio of context before cursor vs after cursor. When the total characters exceed
-the context window, this ratio determines how much context to keep before vs
-after the cursor. A larger ratio means more context before the cursor will be
-used. The ratio should between 0 and `1`, and default is `0.75`.
+- `minuet-add-single-line-entry`: For `minuet-complete-with-minibuffer`
+  function, Whether to create additional single-line completion items. When
+  non-nil and a completion item has multiple lines, create another completion
+  item containing only its first line. This option has no impact for
+  overlay-based suggesion.
 
-## minuet-request-timeout
+- `minuet-n-completions`: For FIM model, this is the number of requests to send.
+  For chat LLM , this is the number of completions encoded as part of the
+  prompt. Note that when `minuet-add-single-line-entry` is true, the actual
+  number of returned items may exceed this value. Additionally, the LLM cannot
+  guarantee the exact number of completion items specified, as this parameter
+  serves only as a prompt guideline. The default is `3`.
 
-Maximum timeout in seconds for sending completion requests. In case of the
-timeout, the incomplete completion items will be delivered. The default is `3`.
+  If resource efficiency is imporant, it is recommended to set this value to
+  `1`.
 
-## minuet-show-error-message-on-minibuffer
+- `minuet-auto-suggestion-block-predicates`: List of predicate functions that
+  decide whether auto-suggestions should be suppressed. Each function is called
+  before requesting a suggestion; if any returns non-nil no suggestion is
+  requested for that moment.
 
-Whether to show the error messages in minibuffer. The default value is `nil`.
-When non-nil, if a request fails or times out without generating even a single
-token, the error message will be shown in the minibuffer. Note that you can
-always inspect `minuet-buffer-name` to view the complete error log.
+- `minuet-auto-suggestion-debounce-delay`: The delay in seconds before sending a
+  completion request after typing stops. The default is `0.4` seconds.
 
-## minuet-add-single-line-entry
-
-For `minuet-complete-with-minibuffer` function, Whether to create additional
-single-line completion items. When non-nil and a completion item has multiple
-lines, create another completion item containing only its first line. This
-option has no impact for overlay-based suggesion.
-
-## minuet-n-completions
-
-For FIM model, this is the number of requests to send. For chat LLM , this is
-the number of completions encoded as part of the prompt. Note that when
-`minuet-add-single-line-entry` is true, the actual number of returned items may
-exceed this value. Additionally, the LLM cannot guarantee the exact number of
-completion items specified, as this parameter serves only as a prompt guideline.
-The default is `3`.
-
-If resource efficiency is imporant, it is recommended to set this value to `1`.
-
-## minuet-auto-suggestion-block-predicates
-
-List of predicate functions that decide whether auto-suggestions should be
-suppressed. Each function is called before requesting a suggestion; if any
-returns non-nil no suggestion is requested for that moment.
-
-## minuet-auto-suggestion-debounce-delay
-
-The delay in seconds before sending a completion request after typing stops. The
-default is `0.4` seconds.
-
-## minuet-auto-suggestion-throttle-delay
-
-The minimum time in seconds between 2 completion requests. The default is `1.0`
-seconds.
+- `minuet-auto-suggestion-throttle-delay`: The minimum time in seconds between 2
+  completion requests. The default is `1.0` seconds.
 
 # Duet (Next Edit Prediction)
 
