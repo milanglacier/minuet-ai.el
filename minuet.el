@@ -1040,7 +1040,7 @@ Return nil if not exists or is an empty string."
            (format "%s is not a valid environment variable.
 If using ollama you can just set it to 'TERM'." api-key)
          "The api-key function returns nil or returns an empty string")))
-    (and (not (equal key "")) key)))
+    (and (not (equal key "")) (string-trim key))))
 
 
 (defun minuet--codestral-available-p ()
