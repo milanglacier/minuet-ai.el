@@ -958,6 +958,26 @@ request timeout from outputing too many tokens.
 
 </details>
 
+### Tsubasa
+
+Use Tsubasa through the existing chat-completion backend. Set
+`TSUBASA_API_KEY` in Emacs's environment and use this configuration:
+
+```lisp
+(with-eval-after-load 'minuet
+  (setq minuet-provider 'openai-compatible)
+  (setq minuet-n-completions 1)
+  (plist-put minuet-openai-compatible-options :name "Tsubasa")
+  (plist-put minuet-openai-compatible-options :model "tsubasa-fast")
+  (plist-put minuet-openai-compatible-options :api-key "TSUBASA_API_KEY")
+  (plist-put minuet-openai-compatible-options :end-point "https://api.tsubasa.sh/v1/chat/completions")
+  (minuet-set-optional-options minuet-openai-compatible-options :max_tokens 256))
+```
+
+To use Pro, set `:model` to `"tsubasa-pro"`. Both aliases have a 32,768-token
+total context window; the example reserves 256 output tokens. This uses the
+chat-completion backend, not the FIM endpoint.
+
 ## OpenAI-FIM-Compatible
 
 Use any provider compatible with OpenAI's completion API. This request uses the
