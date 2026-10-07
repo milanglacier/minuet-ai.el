@@ -778,7 +778,7 @@ Below is the default value:
 
 ```lisp
 (defvar minuet-claude-options
-    `(:model "claude-haiku-4-5"
+    `(:model "claude-haiku-5-5"
       :max_tokens 256
       :api-key "ANTHROPIC_API_KEY"
       :system
@@ -795,6 +795,15 @@ Below is the default value:
       :transform ()
       :optional nil)
     "config options for Minuet Claude provider")
+```
+
+The following configuration is not the default, but recommended to prevent
+request timeout from outputing too many tokens. Claude Haiku 5.5 enables
+thinking by default, so disable it to avoid first token latency.
+
+```lisp
+;; Disable thinking to avoid first token latency.
+(minuet-set-optional-options minuet-claude-options :thinking '(:type "disabled"))
 ```
 
 </details>

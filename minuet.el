@@ -336,7 +336,7 @@ const processedData = transformData(rawData, {
     ,(cadr minuet-default-fewshots)))
 
 (defvar minuet-claude-options
-  `(:model "claude-haiku-4-5"
+  `(:model "claude-haiku-5-5"
     :end-point "https://api.anthropic.com/v1/messages"
     :max_tokens 256
     :api-key "ANTHROPIC_API_KEY"
