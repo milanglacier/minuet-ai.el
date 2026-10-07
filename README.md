@@ -550,9 +550,10 @@ This feature is highly experimental:
 
 It is recommended to configure the thinking levels of the models; refer to the
 [provider options](#provider-options) for guidance on managing thinking settings
-for each provider. Note that you should configure `minuet-duet-*-options` rather
-than `minuet-*-options`, as the latter is the provider option for inline
-completion.
+for each provider. Note that inline completion and duet read from separate
+option variables: inline completion uses `minuet-*-options`, while duet uses
+`minuet-duet-*-options`. Configuring one has no effect on the other, but they
+are configured the same way.
 
 Avoid setting a small `max_tokens` or `max_completion_tokens` limit for duet
 requests. Duet expects the model to return the complete rewritten editable
@@ -696,6 +697,11 @@ Relevant options:
 - [x] Implement automatically triggered duet prediction.
 
 # Provider Options
+
+Each provider has two separate option variables: `minuet-*-options` for inline
+completion and `minuet-duet-*-options` for duet. They do not share settings:
+changing one has no effect on the other, so you need to configure each of them
+separately. The way to configure them is the same, as shown below.
 
 You can customize the provider options using `plist-put`, for example:
 
