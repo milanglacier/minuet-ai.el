@@ -22,5 +22,6 @@ jobs:
       env:
         LOCAL_REPO: ${{ github.workspace }}
         RECIPE: (minuet :fetcher github :repo "milanglacier/minuet-ai.el")
-        EXIST_OK: false
+        # This package is already published on MELPA.
+        EXIST_OK: true
       run: echo $GITHUB_REF && make -C ~/melpazoid
