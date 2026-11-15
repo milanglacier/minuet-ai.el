@@ -15,6 +15,52 @@
 
 (require 'minuet)
 
+(ert-deftest minuet-get-context-in-text-mode-without-comment-syntax ()
+  "Plain text context includes language and indentation hints without errors."
+  (with-temp-buffer
+    (text-mode)
+    (setq-local indent-tabs-mode nil
+                tab-width 4)
+    (insert "(add-to)")
+    (backward-char)
+    (let ((context (minuet--get-context)))
+      (should (equal (plist-get context :before-cursor) "(add-to"))
+      (should (equal (plist-get context :after-cursor) ")"))
+      (should (equal (plist-get context :language-and-tab)
+                     "# language: text\n# indentation: use 4 spaces for a tab")))))
+
+(ert-deftest minuet-context-hints-without-comment-syntax ()
+  "All supported mode families handle missing comment delimiters."
+  (dolist (mode '(text-mode prog-mode conf-mode))
+    (with-temp-buffer
+      (funcall mode)
+      (let ((comment-start nil)
+            (comment-end nil))
+        (should (string-prefix-p "# language: "
+                                 (minuet--add-language-comment)))
+        (let ((indent-tabs-mode t))
+          (should (equal (minuet--add-tab-comment)
+                         "# indentation: use \t for a tab")))
+        (let ((indent-tabs-mode nil)
+              (tab-width 4))
+          (should (equal (minuet--add-tab-comment)
+                         "# indentation: use 4 spaces for a tab")))))))
+
+(ert-deftest minuet-context-hints-preserve-comment-delimiters ()
+  "Existing comment delimiters, including percent signs, remain unchanged."
+  (dolist (delimiters '((";" "") ("%" "") ("<!-- " " -->")))
+    (with-temp-buffer
+      (text-mode)
+      (let ((comment-start (car delimiters))
+            (comment-end (cadr delimiters))
+            (indent-tabs-mode nil)
+            (tab-width 4))
+        (should (equal (minuet--add-language-comment)
+                       (concat comment-start " language: text" comment-end)))
+        (should (equal (minuet--add-tab-comment)
+                       (concat comment-start " indentation: use 4 spaces for a tab"
+                               comment-end)))))))
+
 (ert-deftest minuet-remove-blank-items-drops-whitespace-only-items ()
   "Blank item filtering removes empty items without trimming valid ones."
   (should (equal (minuet--remove-blank-items '("  indented" "" " \t\n" "tail  "))
