@@ -15,6 +15,17 @@
 
 (require 'minuet)
 
+(ert-deftest minuet-add-language-comment-uses-mode-comment-syntax ()
+  "Comment lines use the mode's delimiters, or \"#\" when it has none."
+  (with-temp-buffer
+    (text-mode)
+    (dolist (case '((nil nil "# language: text")
+                    ("%%" "%" "%% language: text%")
+                    ("<!--" " -->" "<!-- language: text -->")))
+      (let ((comment-start (nth 0 case))
+            (comment-end (nth 1 case)))
+        (should (equal (minuet--add-language-comment) (nth 2 case)))))))
+
 (ert-deftest minuet-remove-blank-items-drops-whitespace-only-items ()
   "Blank item filtering removes empty items without trimming valid ones."
   (should (equal (minuet--remove-blank-items '("  indented" "" " \t\n" "tail  "))

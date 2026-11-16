@@ -676,28 +676,27 @@ Also print the MESSAGE when MESSAGE-P is t."
     ;; make sure this function returns nil
     nil))
 
+(defun minuet--wrap-in-comment (text)
+  "Return TEXT as a comment line for the current major mode.
+Use \"#\" when the mode has no comment syntax.  Return an empty
+string outside of `prog-mode', `text-mode' and `conf-mode'."
+  (if (derived-mode-p 'prog-mode 'text-mode 'conf-mode)
+      (concat (or comment-start "#") " " text (or comment-end ""))
+    ""))
+
 (defun minuet--add-tab-comment ()
   "Add comment string for tab use into the prompt."
-  (if-let* ((language-p (derived-mode-p 'prog-mode 'text-mode 'conf-mode))
-            (commentstring (format "%s %%s%s"
-                                   (replace-regexp-in-string "^%" "%%" (or comment-start "#"))
-                                   (or comment-end ""))))
-      (if indent-tabs-mode
-          (format commentstring "indentation: use \t for a tab")
-        (format commentstring (format "indentation: use %d spaces for a tab" tab-width)))
-    ""))
+  (minuet--wrap-in-comment
+   (if indent-tabs-mode
+       "indentation: use \t for a tab"
+     (format "indentation: use %d spaces for a tab" tab-width))))
 
 (defun minuet--add-language-comment ()
   "Add comment string for language use into the prompt."
-  (if-let* ((language-p (derived-mode-p 'prog-mode 'text-mode 'conf-mode))
-            (mode (symbol-name major-mode))
-            (mode (replace-regexp-in-string "-ts-mode" "" mode))
-            (mode (replace-regexp-in-string "-mode" "" mode))
-            (commentstring (format "%s %%s%s"
-                                   (replace-regexp-in-string "^%" "%%" (or comment-start "#"))
-                                   (or comment-end ""))))
-      (format commentstring (concat "language: " mode))
-    ""))
+  (let* ((mode (symbol-name major-mode))
+         (mode (replace-regexp-in-string "-ts-mode" "" mode))
+         (mode (replace-regexp-in-string "-mode" "" mode)))
+    (minuet--wrap-in-comment (concat "language: " mode))))
 
 (defun minuet--add-single-line-entry (data)
   "Add single line entry into the DATA."
